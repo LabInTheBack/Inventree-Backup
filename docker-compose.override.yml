@@ -1,0 +1,16 @@
+services:
+  inventree-proxy:
+    ports: !reset []
+    networks:
+      - default
+      - proxy_net
+
+  inventree-server:
+    networks:
+      - default
+      - proxy_net
+
+networks:
+  proxy_net:
+    external: true
+    name: proxy_net

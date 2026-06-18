@@ -1,0 +1,15 @@
+.env
+
+# InvenTree runtime data volume. Keep only the custom plugin source under git.
+data/*
+!data/plugins/
+!data/plugins/__init__.py
+!data/plugins/inventree_wled_locator_plus/
+!data/plugins/inventree_wled_locator_plus/**
+
+# Python runtime artifacts.
+__pycache__/
+*.py[cod]
+
+# Generated collected static files, including copied plugin assets.
+data/static/
