@@ -64,6 +64,7 @@ class WledClient:
 
     def __init__(self, plugin):
         self.plugin = plugin
+        self._configured_controllers_cache = None
 
     def normalize_base_url(self, address: str) -> str:
         """Return a normalized controller base URL."""
@@ -78,6 +79,9 @@ class WledClient:
 
     def get_configured_controllers(self) -> list[dict]:
         """Return configured WLED controllers before info discovery."""
+        if self._configured_controllers_cache is not None:
+            return [dict(controller) for controller in self._configured_controllers_cache]
+
         text = str(self.plugin.get_setting("WLED_CONTROLLERS", backup_value="") or "").strip()
 
         if not text:
@@ -110,6 +114,7 @@ class WledClient:
         if not any(controller["primary"] for controller in controllers):
             controllers[0]["primary"] = True
 
+        self._configured_controllers_cache = [dict(controller) for controller in controllers]
         return controllers
 
     def deserialize_controller(self, raw: dict) -> dict:
@@ -173,6 +178,7 @@ class WledClient:
             serialized[0]["primary"] = True
 
         self.plugin.set_setting("WLED_CONTROLLERS", json.dumps(serialized, indent=2))
+        self._configured_controllers_cache = [dict(controller) for controller in serialized]
         return serialized
 
     def upsert_controller(self, controller: dict) -> dict:
@@ -259,9 +265,16 @@ class WledClient:
         return self.get_controller_max_leds()
 
     def get_controller_max_leds(self, label: str | None = None) -> int:
-        """Return LED count for a controller, preferring WLED info."""
+        """Return LED count for a controller.
+
+        Normal locate/test/register paths must not depend on repeated live WLED
+        info requests. Prefer the saved controller record, and only fall back to
+        WLED /json/info when no manual or synced LED count has been stored yet.
+        """
         controller = self.get_controller(label)
-        info_error = None
+
+        if controller.get("max_leds"):
+            return int(controller["max_leds"])
 
         try:
             info = self.get_info(controller["label"])
@@ -269,17 +282,12 @@ class WledClient:
             if isinstance(led_count, int) and led_count > 0:
                 return led_count
         except WledRequestError as exc:
-            info_error = exc
-
-        if controller.get("max_leds"):
-            return int(controller["max_leds"])
-
-        if info_error:
             raise ValueError(
-                f"Could not auto-detect LED count for controller {controller['label']}: {info_error}"
-            ) from info_error
+                f"Controller {controller['label']} has no saved LED count and "
+                f"WLED auto-detection failed: {exc}"
+            ) from exc
 
-        raise ValueError(f"Controller {controller['label']} has no detectable LED count")
+        raise ValueError(f"Controller {controller['label']} has no saved or detectable LED count")
 
     def get_timeout(self) -> int:
         """Return configured HTTP timeout."""
