@@ -5,8 +5,11 @@ Use this checklist before creating or updating parts in InvenTree.
 ## Source Rules
 
 - Use the provided supplier page as the primary source.
+- Use an official manufacturer product page or datasheet for technical values when it is provided or directly available from the supplier page.
+- When DigiKey attributes conflict with the exact manufacturer datasheet, use the manufacturer datasheet and record the datasheet meaning accurately.
+  - Example: do not store a typical breakdown voltage as an absolute maximum voltage.
 - Do not invent missing values.
-- Do not use external sources unless explicitly requested.
+- Do not use distributor mirrors or unrelated third-party pages to fill missing technical values.
 - Do not fill fields the user did not ask for.
 - If a required value is missing, leave it blank instead of guessing.
 - Before creating the part, present the extracted data for review when requested.
@@ -18,8 +21,11 @@ Use this checklist before creating or updating parts in InvenTree.
 - Description should be concise and taken from the supplier page.
 - Category must match the actual component family.
 - Add useful keywords, but keep them factual and concise. Always reuse the existing ones.
-- Attach the product image when available, or reuse an existing package image when the package matches.
-- Attach the datasheet when available from the supplier page.
+- Attach an exact product image when available from DigiKey or the official manufacturer.
+- Reuse an existing package or product-family image only when the package and visible construction match.
+- Set the visible part image field; adding only an image attachment is not sufficient.
+- Attach the exact official manufacturer datasheet whenever it is available.
+- Verify that the downloaded file is a real PDF for the exact MPN before attaching it.
 - Put the manufacturer/product page in `Part Details -> Link` when the user provides one.
 - Do not use an attachment as a substitute for the part link field.
 
@@ -303,7 +309,7 @@ For Linear Regulator value mapping:
 
 ## DC-DC Converter IC Parameters
 
-Use these DC-DC Converter IC parameters when the DigiKey page or provided manufacturer page gives values:
+Use these DC-DC Converter IC parameters under `Electronics / ICs / Power Management (PMIC) / DC-DC Converters` when the DigiKey page or provided manufacturer page gives values:
 
 - `Converter Topology`
 - `Regulator Output Type`
@@ -392,6 +398,79 @@ For Motor Driver IC value mapping:
 - Use text for `Step Resolution Max` so values such as `1/256` are preserved clearly.
 - Keep ICs and modules separate: motor-driver IC packages go under `Electronics / ICs / Motor Drivers`.
 
+## PMIC Category Rules
+
+Use `Electronics / ICs / Power Management (PMIC)` as the grouping category for power-management ICs.
+
+Place these under PMIC:
+
+- `Battery Chargers`
+- `Voltage Regulators`
+- `DC-DC Converters`
+- `Gate Drivers`
+- `USB PD Controllers`
+
+Keep these outside PMIC unless explicitly reorganized later:
+
+- `Motor Drivers`
+
+## Battery Charger Parameters
+
+Use these Battery Charger parameters under `Electronics / ICs / Power Management (PMIC) / Battery Chargers`:
+
+- `Battery Chemistry`
+- `Number of Cells`
+- `Output Current Max` (`A`)
+- `Output Voltage` (`V`)
+- `Supply Voltage Min` (`V`)
+- `Supply Voltage Max` (`V`)
+- `Data Interface`
+- `Charging Profile`
+- `Programmable Features`
+- `Protection Features`
+- `Mounting Type`
+- `Package / Case`
+- `Supplier Device Package`
+- `Operating Temperature Min` (`°C`)
+- `Operating Temperature Max` (`°C`)
+
+For Battery Charger value mapping:
+
+- Reuse `Output Current Max` for DigiKey `Charge Current - Max`.
+- Reuse `Output Voltage` for DigiKey `Battery Pack Voltage`.
+- Reuse `Supply Voltage Max` for DigiKey `Voltage - Supply (Max)`.
+- Use `Data Interface` only when DigiKey lists a real interface, such as `USB`, `I2C`, or `SPI`.
+- Map DigiKey `Current - Charging` to `Charging Profile`.
+- Map DigiKey `Programmable Features` directly when listed.
+- Map DigiKey `Fault Protection` to `Protection Features`.
+- Do not create separate charger current or charger voltage parameters unless the shared fields become ambiguous in practice.
+
+## USB PD Controller Parameters
+
+Use these USB PD Controller parameters under `Electronics / ICs / Power Management (PMIC) / USB PD Controllers`:
+
+- `USB Controller Type`
+- `USB PD Role`
+- `Supply Voltage Min` (`V`)
+- `Supply Voltage Max` (`V`)
+- `Quiescent Current Max` (`uA`)
+- `Automotive Qualified`
+- `Mounting Type`
+- `Package / Case`
+- `Supplier Device Package`
+- `Operating Temperature Min` (`°C`)
+- `Operating Temperature Max` (`°C`)
+
+For USB PD Controller value mapping:
+
+- Use `USB Controller Type` for values such as `USB PD Sink Controller`, `USB PD Source Controller`, or `USB Type-C Controller`.
+- Use `USB PD Role` for `Sink`, `Source`, or `DRP` when clear from the description or page.
+- Reuse supply-voltage fields for DigiKey `Voltage - Supply`.
+- Convert DigiKey `Current - Supply` to `Quiescent Current Max` in `uA`.
+  - Example: `6mA` -> `6000`
+- Set `Automotive Qualified` only when DigiKey explicitly lists an automotive grade or qualification such as `AEC-Q100`.
+- Do not use `Data Interface` just because DigiKey lists `Applications = USB, Type-C Controller`; only use it when an actual control interface is listed.
+
 ## Motor Driver Module Parameters
 
 Use these parameters for breakout boards, carrier boards, and evaluation boards under `Electronics / Modules / Motor Driver Modules`:
@@ -421,15 +500,257 @@ For Motor Driver Module value mapping:
 - Use `Module Platform` for board ecosystem or format, such as `Adafruit Breakout` or `Pololu Carrier`.
 - Leave electrical ratings blank when the DigiKey module page does not list them.
 
+## Analog Switch Parameters
+
+Use these Analog Switch parameters for ICs under `Electronics / ICs / Analog Switches`:
+
+- `Switch Circuit`
+- `Mux/Demux Ratio`
+- `Number of Circuits`
+- `Supply Voltage Min` (`V`)
+- `Supply Voltage Max` (`V`)
+- `Quiescent Current Max` (`uA`)
+- `On-State Resistance Max` (`ohms`)
+- `Switch On Time Max` (`ns`)
+- `Switch Off Time Max` (`ns`)
+- `Off Leakage Current Max` (`nA`)
+- `Charge Injection` (`pC`)
+- `Channel Capacitance` (`pF`)
+- `Crosstalk` (`dB`)
+- `Crosstalk Conditions`
+- `Mounting Type`
+- `Package / Case`
+- `Supplier Device Package`
+- `Operating Temperature Min` (`°C`)
+- `Operating Temperature Max` (`°C`)
+
+For Analog Switch value mapping:
+
+- Map DigiKey `Multiplexer/Demultiplexer Circuit` to `Mux/Demux Ratio`.
+- Split `Switch Time (Ton, Toff)` into `Switch On Time Max` and `Switch Off Time Max`.
+- Convert leakage current to `nA`.
+  - Example: `100pA` -> `0.1`
+- Store crosstalk test frequency in `Crosstalk Conditions`.
+
+## I/O Expander Parameters
+
+Use these I/O Expander parameters for ICs under `Electronics / ICs / I/O Expanders`:
+
+- `Number of I/O`
+- `Data Interface`
+- `Clock Frequency` (`MHz`)
+- `Supply Voltage Min` (`V`)
+- `Supply Voltage Max` (`V`)
+- `Output Type`
+- `Output Current High Max` (`mA`)
+- `Output Current Low Max` (`mA`)
+- `Interrupt Output`
+- `Internal Pull-Ups`
+- `Automotive Qualified`
+- `Mounting Type`
+- `Package / Case`
+- `Supplier Device Package`
+- `Operating Temperature Min` (`°C`)
+- `Operating Temperature Max` (`°C`)
+
+For I/O Expander value mapping:
+
+- Map DigiKey `Interface` to `Data Interface`.
+- Map DigiKey `Clock Frequency` to `Clock Frequency`.
+- Split source/sink output current into both output-current parameters when DigiKey gives one shared value.
+- Set `Interrupt Output` only when DigiKey explicitly lists interrupt output support.
+- Set `Internal Pull-Ups` only when explicitly listed.
+
+## Frequency Control Parameters
+
+Use these categories:
+
+- `Electronics / Frequency Control / Crystals & Resonators`
+- `Electronics / Frequency Control / Oscillators`
+
+Use these Crystal / Resonator parameters when the supplier page provides values:
+
+- `Frequency Control Type`
+- `Frequency` (`MHz`)
+- `Frequency Tolerance` (`ppm`)
+- `Frequency Stability` (`ppm`)
+- `Load Capacitance` (`pF`)
+- `ESR Max` (`ohms`)
+- `Operating Mode`
+- `Automotive Qualified`
+- `Length` (`mm`)
+- `Width` (`mm`)
+- `Height` (`mm`)
+- `Mounting Type`
+- `Package / Case`
+- `Supplier Device Package`
+- `Operating Temperature Min` (`°C`)
+- `Operating Temperature Max` (`°C`)
+
+Use these Oscillator parameters when the supplier page provides values:
+
+- `Frequency Control Type`
+- `Oscillator Type`
+- `Frequency` (`MHz`)
+- `Frequency Stability` (`ppm`)
+- `Supply Voltage Min` (`V`)
+- `Supply Voltage Max` (`V`)
+- `Output Type`
+- `Quiescent Current Max` (`uA`)
+- `Mounting Type`
+- `Package / Case`
+- `Supplier Device Package`
+- `Operating Temperature Min` (`°C`)
+- `Operating Temperature Max` (`°C`)
+
+For Frequency Control value mapping:
+
+- Use one shared `Frequency` parameter in `MHz`.
+  - Example: `500kHz` -> `0.5`
+  - Example: `24 MHz` -> `24`
+- Store tolerance and stability as plain ppm numbers without the `±` sign.
+  - Example: `±50ppm` -> `50`
+- Convert dimensions to `mm` when DigiKey lists both inch and metric values.
+- Convert isolation-like or voltage-like values only when the template unit requires it.
+- For unknown crystals, create an internal generic part and leave unknown load capacitance, ESR, tolerance, and stability blank.
+- Do not copy values from a visually similar supplier part unless it is confirmed to be the same part.
+
+## Timer IC Parameters
+
+Use these Timer IC parameters for ICs under `Electronics / ICs / Timers`:
+
+- `Timer Type`
+- `Number of Circuits`
+- `Frequency` (`MHz`)
+- `Supply Voltage Min` (`V`)
+- `Supply Voltage Max` (`V`)
+- `Quiescent Current Max` (`uA`)
+- `Output Type`
+- `Mounting Type`
+- `Package / Case`
+- `Supplier Device Package`
+- `Operating Temperature Min` (`°C`)
+- `Operating Temperature Max` (`°C`)
+
+For Timer IC value mapping:
+
+- Map DigiKey `Type` to `Timer Type`.
+- Map single/dual timer text to `Number of Circuits`.
+  - Example: `555 Type, Timer/Oscillator (Single)` -> `1`
+  - Example: `555 Type, Timer/Oscillator (Dual)` -> `2`
+- Use shared `Frequency` only when DigiKey lists a frequency.
+- Convert current to `uA`.
+  - Example: `10 mA` -> `10000`
+- Obsolete timer ICs should be `purchaseable = false` unless the user explicitly provides a purchasable supplier record.
+
+## Optical Sensor Parameters
+
+Use these categories for discrete optical detectors:
+
+- `Electronics / Sensors / Light Optical / Photodiodes`
+- `Electronics / Sensors / Light Optical / Phototransistors`
+
+Use these shared optical parameters when the supplier page or exact manufacturer datasheet provides values:
+
+- `Peak Wavelength` (`nm`)
+- `Spectral Range Min` (`nm`)
+- `Spectral Range Max` (`nm`)
+- `Viewing Angle` (`°`)
+- `Dark Current` (`nA`)
+- `Dark Current Conditions`
+- `Photocurrent Min` (`mA`)
+- `Photocurrent Typical` (`mA`)
+- `Photocurrent Conditions`
+- `Responsivity` (`A/W`)
+- `Responsivity Conditions`
+- `Mounting Type`
+- `Package / Case`
+- `Supplier Device Package`
+- `Power Dissipation @ T_A` (`W`)
+- `Operating Temperature Min` (`°C`)
+- `Operating Temperature Max` (`°C`)
+
+Use these additional Photodiode parameters:
+
+- `Photodiode Type`
+- `Reverse Voltage Max` (`V`)
+- `Active Area` (`mm²`)
+- `Photo Response Time` (`ns`)
+
+Use these additional Phototransistor parameters:
+
+- `BJT Type`
+- `Collector-Emitter Voltage Max` (`V`)
+- `Collector Current Max` (`A`)
+- `V_CE(sat) Max` (`V`)
+- `V_CE(sat) Conditions`
+- `Rise Time` (`ns`)
+- `Fall Time` (`ns`)
+
+For Optical Sensor value mapping:
+
+- `Dark Current` is a generic numeric field. Preserve whether the source value is typical or maximum at the start of `Dark Current Conditions`.
+  - Example: `Dark Current = 100`, `Dark Current Conditions = Maximum; V_CE=20V, E_e=0mW/cm²`.
+  - Example: `Dark Current = 10`, `Dark Current Conditions = Typical; V_R=10V, E_e=0mW/cm²`.
+- Prefer the manufacturer datasheet's typical/maximum classification when DigiKey labels it differently.
+- Store `Photocurrent Min` and `Photocurrent Typical` in `mA`.
+  - Example: `30uA` -> `0.03`.
+  - Example: `3.5uA` -> `0.0035`.
+- Store irradiance, bias voltage, and wavelength in the relevant condition field.
+- Use `Photo Response Time` when DigiKey provides one generic optical response-time value. Use `Rise Time` and `Fall Time` only when the source lists them separately.
+- Use the datasheet absolute maximum reverse voltage for `Reverse Voltage Max`, not a typical breakdown voltage.
+  - Example: PD204-6C uses `32`, while `170V` is its typical reverse breakdown voltage.
+- Do not infer responsivity from photocurrent and irradiance. Leave it blank unless the source explicitly specifies responsivity.
+- Do not create an `Orientation` parameter solely for `Top View`; package and description normally provide enough physical context.
+
+## Optocoupler Parameters
+
+Use these Optocoupler parameters for ICs under `Electronics / ICs / Isolation / Optocouplers`:
+
+- `Number of Circuits`
+- `Optocoupler Input Type`
+- `Output Type`
+- `Isolation Voltage` (`kV`)
+- `Forward Voltage Typical` (`V`)
+- `Forward Current Max` (`mA`)
+- `Output Voltage Max` (`V`)
+- `Output Current Max` (`A`)
+- `CTR Min` (`%`)
+- `CTR Max` (`%`)
+- `CTR Conditions`
+- `V_CE(sat) Max` (`V`)
+- `V_CE(sat) Conditions`
+- `Switch On Time Max` (`ns`)
+- `Switch Off Time Max` (`ns`)
+- `Rise Time` (`ns`)
+- `Fall Time` (`ns`)
+- `Mounting Type`
+- `Package / Case`
+- `Supplier Device Package`
+- `Operating Temperature Min` (`°C`)
+- `Operating Temperature Max` (`°C`)
+
+For Optocoupler value mapping:
+
+- Use `Optocoupler Input Type = DC` or `AC` only when the input type is clear.
+- Reuse `Output Type`; do not create a separate optocoupler output-type parameter.
+- Convert isolation voltage to `kV`.
+  - Example: `5000Vrms` -> `5`
+- Convert output current to `A`.
+  - Example: `50mA` -> `0.05`
+- Store CTR test details in `CTR Conditions`.
+- Use `V_CE(sat)` fields only for phototransistor optocouplers where they are listed.
+
 ## Price Breaks
 
 - DigiKey.com may be used for technical product attributes when DigiKey.de is blocked.
 - For DigiKey pricing, use DigiKey.de EUR price breaks only.
+- Use the exact DigiKey.de EUR table when it is accessible, even when the user did not paste the table separately.
 - Do not use distributor mirrors, search snippets, converted currencies, or inferred values for DigiKey pricing.
 - Do not import or display USD prices for this workflow.
 - Preserve the supplier price precision when storing price breaks.
 - Use quantity and unit price only.
-- If no EUR price table is provided, leave price breaks empty instead of fetching or guessing.
+- If the exact DigiKey.de EUR table is unavailable and the user did not provide it, leave price breaks empty instead of guessing.
 
 ## Stock And Purchasing
 
@@ -438,12 +759,17 @@ For Motor Driver Module value mapping:
 - Record lifecycle/status notes only when listed.
 - Do not create stock items unless explicitly requested.
 - Do not change stock locations unless explicitly requested.
+- If the part already exists, treat a provided quantity as additional stock to add, not as the final total, unless the user explicitly says it is the total count.
 - Link created stock items to the matching supplier part when the stock came from that supplier part.
 - Supplier-part stock views can show `0` if the stock item is not linked to the supplier part.
 - Use `THT` in keywords for through-hole parts and `SMD` for surface-mount parts.
 - Reuse package images only when the package is actually the same.
   - Example: reuse a `SOT-23-3` image only for other `SOT-23-3` parts.
-  - Current reusable package images include `TO-92-3.webp`, `TO-220-3.png`, `TO-252.png`, `SOT-23-3.png`, `SOT-363.png`, `8-DIP.webp`, and `8-SOIC.webp`.
+  - Current reusable package images include `TO-92-3.webp`, `TO-220-3.png`, `TO-252.png`, `SOT-23-3.png`, `SOT-363.png`, `6TSOP.webp`, `8-DIP.webp`, `14-DIP.webp`, `8-SOIC.webp`, and `24-WFQFN_Exposed_Pad.webp`.
+  - Set the visible part image field, not only an attachment, when reusing an image.
+- Prefer an exact official product image over a generic package image.
+- A manufacturer family image is acceptable only when it visibly includes the exact package variant; note that it is a family image in the attachment comment.
+- Attach the official manufacturer datasheet as a separate PDF attachment whenever available.
 
 ## BJT Array Mapping
 
@@ -459,8 +785,10 @@ After creating or updating a part, verify:
 - IPN equals the part number.
 - Manufacturer and MPN are correct.
 - Supplier is DigiKey and SPN is correct.
-- Datasheet is attached when available.
-- Image is attached when available.
+- Exact-MPN manufacturer datasheet is attached when available.
+- Product image is attached and set as the visible part image when available.
 - Parameters have no duplicated units.
 - EUR price breaks match the supplier page.
+- Supplier availability remains `0` unless the user explicitly requested tracking it.
+- Manufacturer-datasheet values were used where supplier attributes mislabeled a rating or condition.
 - No duplicate part, manufacturer part, supplier part, or parameter records were created.
