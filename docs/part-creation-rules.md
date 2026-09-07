@@ -5,7 +5,15 @@ Use this checklist before creating or updating parts in InvenTree.
 ## Source Rules
 
 - Use the provided supplier page as the primary source.
-- Use an official manufacturer product page or datasheet for technical values when it is provided or directly available from the supplier page.
+- Prefer the corresponding DigiKey.com product page for technical attributes when the provided DigiKey.de page is inaccessible.
+- Keep the provided DigiKey.de URL as the InvenTree supplier link.
+- Use an official manufacturer product page or the exact datasheet linked in DigiKey's `Datasheet` field for technical values.
+- Never search the web for a datasheet. Only follow DigiKey's `Datasheet` link.
+- If DigiKey has no datasheet link or the linked file cannot be retrieved, leave the datasheet unattached. The user will attach it manually.
+- Use the technical information supplied by the user without re-searching it.
+- Do not browse specifically to find an image or datasheet. Check the local InvenTree image database first.
+- If an image or DigiKey-linked datasheet is immediately available during the normal product-page check, make at most one quick retrieval attempt.
+- If either asset is inaccessible on that attempt, skip it immediately. Never retry, guess URLs, test alternate URLs, or perform additional searches.
 - When DigiKey attributes conflict with the exact manufacturer datasheet, use the manufacturer datasheet and record the datasheet meaning accurately.
   - Example: do not store a typical breakdown voltage as an absolute maximum voltage.
 - Do not invent missing values.
@@ -21,10 +29,15 @@ Use this checklist before creating or updating parts in InvenTree.
 - Description should be concise and taken from the supplier page.
 - Category must match the actual component family.
 - Add useful keywords, but keep them factual and concise. Always reuse the existing ones.
-- Attach an exact product image when available from DigiKey or the official manufacturer.
+- For modules and boards, include practical finder keywords for the physical object and purpose.
+  - Examples: `module`, `board`, `eval`, `evaluation board`, `breakout`, `carrier`, `power module`, `sensor module`, `display module`.
+  - Include these even if similar words already appear in the description, because keyword search should work independently of fields shown in the table.
+- Check existing InvenTree images before attempting to retrieve a new image.
+- Attach an exact product image only when it is already local or immediately available from the supplier page being used.
 - Reuse an existing package or product-family image only when the package and visible construction match.
+- For modules and evaluation boards, reuse an image only for the exact board, not merely the same utilized IC or a similar board.
 - Set the visible part image field; adding only an image attachment is not sufficient.
-- Attach the exact official manufacturer datasheet whenever it is available.
+- Attach the exact official manufacturer datasheet only when it is available through DigiKey's `Datasheet` link.
 - Verify that the downloaded file is a real PDF for the exact MPN before attaching it.
 - Put the manufacturer/product page in `Part Details -> Link` when the user provides one.
 - Do not use an attachment as a substitute for the part link field.
@@ -34,6 +47,7 @@ Use this checklist before creating or updating parts in InvenTree.
 - Manufacturer must be the real manufacturer from the supplier page. (If possible use provided supplier list in Inventree)
 - Check for existing equivalent manufacturer names before creating a new company.
   - Example: `Diodes Inc` and `Diodes Incorporated` should not both exist.
+  - Example: Murata divisions should use the existing consolidated `Murata Electronics` manufacturer.
 - Manufacturer part number must be the actual MPN.
 - Supplier should be `DigiKey` for DigiKey pages.
 - Use only `SPN` for the supplier part number.
@@ -650,7 +664,7 @@ Use these categories for discrete optical detectors:
 - `Electronics / Sensors / Light Optical / Photodiodes`
 - `Electronics / Sensors / Light Optical / Phototransistors`
 
-Use these shared optical parameters when the supplier page or exact manufacturer datasheet provides values:
+Use these shared optical parameters when the supplier page or the exact manufacturer datasheet linked by DigiKey provides values:
 
 - `Peak Wavelength` (`nm`)
 - `Spectral Range Min` (`nm`)
@@ -741,9 +755,145 @@ For Optocoupler value mapping:
 - Store CTR test details in `CTR Conditions`.
 - Use `V_CE(sat)` fields only for phototransistor optocouplers where they are listed.
 
+## PIR Sensor Parameters
+
+Use these PIR sensor parameters for parts under `Electronics / Sensors / Motion Sensors / PIR Sensors`:
+
+- `Supply Voltage Min` (`V`)
+- `Supply Voltage Max` (`V`)
+- `Output Type`
+- `Sensitivity`
+- `Field of View X` (`°`)
+- `Field of View Y` (`°`)
+- `Detection Pattern`
+- `Trigger Type`
+- `Mounting Type`
+- `Package / Case`
+- `Supplier Device Package`
+- `Operating Temperature Min` (`°C`)
+- `Operating Temperature Max` (`°C`)
+
+For PIR sensor value mapping:
+
+- Reuse the shared supply-voltage, output, mounting, package, and temperature templates.
+- Keep `Sensitivity` as text because manufacturers specify PIR sensitivity using different methods and conditions.
+- Store horizontal and vertical field of view separately only when the source explicitly identifies each axis.
+- Do not infer field of view, sensitivity, mounting type, or supplier package from the physical appearance.
+- Use the `PIR Sensors` category itself to identify the sensor technology; do not add a redundant generic `Sensor Type` parameter.
+- Leave unavailable fields unset rather than copying values from another member of the sensor family.
+
+## Sensor Lens Parameters
+
+Use these parameters for passive sensor optics under `Electronics / Sensors / Accessories / Sensor Lenses`:
+
+- `Field of View X` (`°`)
+- `Field of View Y` (`°`)
+- `Detection Distance Max` (`m`)
+- `Lens Color`
+- `Material`
+- `Operating Temperature Min` (`°C`)
+- `Operating Temperature Max` (`°C`)
+
+For sensor lens records:
+
+- Relate the lens to the compatible sensor part when compatibility is explicitly known.
+- Treat color or material variants as separate parts when they are physically distinct stock items.
+- Do not infer optical values from a visually similar lens.
+
+## Environmental Sensor Parameters
+
+Use the existing category matching the measured quantity, including:
+
+- `Electronics / Sensors / Humidity`
+- `Electronics / Sensors / Temperature`
+- `Electronics / Sensors / Pressure`
+
+Use these shared environmental parameters when listed:
+
+- `Supply Voltage Min` (`V`)
+- `Supply Voltage Max` (`V`)
+- `Supply Current Typ` (`uA`)
+- `Supply Current Max` (`uA`)
+- `Supply Current Conditions`
+- `Data Interface`
+- `Resolution` (`bit`)
+- `Automotive Qualified`
+- `Mounting Type`
+- `Package / Case`
+- `Supplier Device Package`
+- `Operating Temperature Min` (`°C`)
+- `Operating Temperature Max` (`°C`)
+
+For humidity and temperature sensors, use applicable fields from:
+
+- `Humidity Range Min` (`%RH`)
+- `Humidity Range Max` (`%RH`)
+- `Humidity Accuracy Typ` (`%RH`)
+- `Humidity Accuracy Conditions`
+- `Humidity Response Time` (`s`)
+- `Temperature Accuracy Typ` (`°C`)
+- `Temperature Accuracy Conditions`
+- `Temperature Response Time` (`s`)
+- `Sensing Temperature Min` (`°C`)
+- `Sensing Temperature Max` (`°C`)
+- `Sensor Protection`
+
+For pressure sensors, use applicable fields from:
+
+- `Pressure Type`
+- `Pressure Range Min` (`kPa`)
+- `Pressure Range Max` (`kPa`)
+- `Overpressure Max` (`kPa`)
+- `Pressure Accuracy` (`kPa`)
+- `Port Style`
+
+For environmental sensor value mapping:
+
+- Keep component ICs and sensor modules separate even when they use the same sensing element.
+- Use `Data Interface` for interfaces such as `I2C` or `SPI`; do not duplicate the same value in `Output Type` unless it describes an electrical output rather than a bus.
+- Convert ranges and currents into the template units while preserving conditions in their condition fields.
+- Relate a module to its utilized sensor IC only when the exact IC is known.
+- Accessories such as filter caps belong under `Electronics / Sensors / Accessories`, not in a sensor component category.
+
+## Sensor Module Categories
+
+Use `Electronics / Modules / Sensor Modules` as a structural grouping category. Do not assign parts directly to it.
+
+Use these practical subcategories:
+
+- `Environmental / Air Quality & Gas`
+- `Environmental / Humidity & Temperature`
+- `Environmental / Pressure & Altitude`
+- `Motion / Accelerometers`
+- `Motion / IMUs`
+- `Optical & Proximity`
+
+For module classification:
+
+- Classify by the module's primary function, not only by the utilized IC's original DigiKey category.
+- A housed or breakout sensor assembly is a module, even when its main device is a normal sensor IC.
+- Use `Module Type = Module` or `Board` as appropriate.
+- Store the exact main device in `Utilized IC` and create a related-part link when that bare component exists in InvenTree.
+- Do not create a bare component solely to support a module relationship unless requested.
+- Do not reuse a bare IC image as the module image.
+
+## Current Sensor Drawer Plan
+
+- Cabinet-02 Drawer-27: THT optical sensors and detectors.
+- Cabinet-02 Drawer-28: SMD photodiodes and IR receivers.
+- Cabinet-02 Drawer-29: IR LED emitters.
+- Cabinet-02 Drawer-30: PIR sensors and sensor lenses.
+- Cabinet-02 Drawer-31: Position, proximity, and touch sensor components.
+- Cabinet-02 Drawer-32: Piezoelectric elements and transducers.
+- Cabinet-02 Drawer-33: Environmental sensor components.
+- Cabinet-02 Drawer-34: Environmental sensor modules.
+- Cabinet-02 Drawer-35: Motion sensor modules.
+- Cabinet-02 Drawer-36: Optical and proximity sensor modules.
+- Cabinet-02 Drawer-37: currently unassigned.
+
 ## Price Breaks
 
-- DigiKey.com may be used for technical product attributes when DigiKey.de is blocked.
+- Use DigiKey.com for technical product attributes when needed and for DigiKey's directly exposed `Datasheet` link.
 - For DigiKey pricing, use DigiKey.de EUR price breaks only.
 - Use the exact DigiKey.de EUR table when it is accessible, even when the user did not paste the table separately.
 - Do not use distributor mirrors, search snippets, converted currencies, or inferred values for DigiKey pricing.
@@ -759,6 +909,8 @@ For Optocoupler value mapping:
 - Record lifecycle/status notes only when listed.
 - Do not create stock items unless explicitly requested.
 - Do not change stock locations unless explicitly requested.
+- Creating a catalog part and adding physical stock are separate operations. Never infer stock quantity.
+- If no quantity is supplied, do not create stock; ask for the quantity only when stock creation is required.
 - If the part already exists, treat a provided quantity as additional stock to add, not as the final total, unless the user explicitly says it is the total count.
 - Link created stock items to the matching supplier part when the stock came from that supplier part.
 - Supplier-part stock views can show `0` if the stock item is not linked to the supplier part.
@@ -767,9 +919,11 @@ For Optocoupler value mapping:
   - Example: reuse a `SOT-23-3` image only for other `SOT-23-3` parts.
   - Current reusable package images include `TO-92-3.webp`, `TO-220-3.png`, `TO-252.png`, `SOT-23-3.png`, `SOT-363.png`, `6TSOP.webp`, `8-DIP.webp`, `14-DIP.webp`, `8-SOIC.webp`, and `24-WFQFN_Exposed_Pad.webp`.
   - Set the visible part image field, not only an attachment, when reusing an image.
-- Prefer an exact official product image over a generic package image.
+- Check local InvenTree images first and prefer an exact official product image over a generic package image.
 - A manufacturer family image is acceptable only when it visibly includes the exact package variant; note that it is a family image in the attachment comment.
-- Attach the official manufacturer datasheet as a separate PDF attachment whenever available.
+- Attach the official manufacturer datasheet as a separate PDF attachment only when retrieved through DigiKey's `Datasheet` link.
+- Do not search manufacturer sites, search engines, distributor mirrors, or other websites for missing datasheets.
+- Do not perform a separate web search for assets. Any retrieval made from the product page has a strict one-attempt limit covering both image and datasheet. After that attempt, continue part creation without missing assets.
 
 ## BJT Array Mapping
 
@@ -785,7 +939,7 @@ After creating or updating a part, verify:
 - IPN equals the part number.
 - Manufacturer and MPN are correct.
 - Supplier is DigiKey and SPN is correct.
-- Exact-MPN manufacturer datasheet is attached when available.
+- Exact-MPN manufacturer datasheet is attached when DigiKey provides an accessible `Datasheet` link; otherwise it is intentionally left unattached.
 - Product image is attached and set as the visible part image when available.
 - Parameters have no duplicated units.
 - EUR price breaks match the supplier page.
