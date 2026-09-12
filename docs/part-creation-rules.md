@@ -4,18 +4,18 @@ Use this checklist before creating or updating parts in InvenTree.
 
 ## Source Rules
 
-- Use the provided supplier page as the primary source.
-- Prefer the corresponding DigiKey.com product page for technical attributes when the provided DigiKey.de page is inaccessible.
-- Keep the provided DigiKey.de URL as the InvenTree supplier link.
-- Use an official manufacturer product page or the exact datasheet linked in DigiKey's `Datasheet` field for technical values.
-- Never search the web for a datasheet. Only follow DigiKey's `Datasheet` link.
-- If DigiKey has no datasheet link or the linked file cannot be retrieved, leave the datasheet unattached. The user will attach it manually.
-- Use the technical information supplied by the user without re-searching it.
-- Do not browse specifically to find an image or datasheet. Check the local InvenTree image database first.
-- If an image or DigiKey-linked datasheet is immediately available during the normal product-page check, make at most one quick retrieval attempt.
-- If either asset is inaccessible on that attempt, skip it immediately. Never retry, guess URLs, test alternate URLs, or perform additional searches.
-- When DigiKey attributes conflict with the exact manufacturer datasheet, use the manufacturer datasheet and record the datasheet meaning accurately.
-  - Example: do not store a typical breakdown voltage as an absolute maximum voltage.
+- When the user provides a DigiKey.de or DigiKey.com link, use the corresponding DigiKey.com product page as the source for all part identity, manufacturer, supplier-part, description, lifecycle, packaging, and parameter data.
+- Keep the exact supplier URL provided by the user as the InvenTree supplier link, even when the corresponding DigiKey.com page is used for analysis.
+- When the user explicitly provides a Mouser link instead, use that Mouser product page as the supplier source.
+- Do not supplement supplier data with manufacturer sites, distributor mirrors, or general web searches unless the user explicitly asks.
+- Copy the file directly from the supplier page's `Datasheet` link into the corresponding part's `Attachments`.
+- Do not open, parse, scan, or extract technical values from the datasheet. The supplier product page is the source for entered attributes.
+- If the supplier has no datasheet link or the linked file cannot be retrieved on the quick attempt, leave the datasheet unattached. The user will attach it manually.
+- Every provided DigiKey.de or DigiKey.com part link requires an exact DigiKey product-image check.
+- For image retrieval, use the corresponding DigiKey.com product page even when the provided supplier link uses DigiKey.de.
+- Follow the product image linked by DigiKey, normally hosted on `mm.digikey.com`; do not use a search-engine result or an unrelated distributor image.
+- Make only one quick DigiKey image-retrieval attempt. If the exact image is inaccessible, skip it without retries, guessed URLs, alternate sites, or additional searches.
+- Make only one quick retrieval attempt for the supplier-linked datasheet. If it is inaccessible, skip it immediately.
 - Do not invent missing values.
 - Do not use distributor mirrors or unrelated third-party pages to fill missing technical values.
 - Do not fill fields the user did not ask for.
@@ -32,13 +32,15 @@ Use this checklist before creating or updating parts in InvenTree.
 - For modules and boards, include practical finder keywords for the physical object and purpose.
   - Examples: `module`, `board`, `eval`, `evaluation board`, `breakout`, `carrier`, `power module`, `sensor module`, `display module`.
   - Include these even if similar words already appear in the description, because keyword search should work independently of fields shown in the table.
-- Check existing InvenTree images before attempting to retrieve a new image.
-- Attach an exact product image only when it is already local or immediately available from the supplier page being used.
+- Check existing InvenTree images for an exact product image before downloading another copy.
+- For every part created from a DigiKey link, copy the exact DigiKey product image when it is accessible.
+- A DigiKey.de link must be mapped to the corresponding DigiKey.com product page for the image check while the provided DigiKey.de URL remains the supplier link.
+- Download the exact image URL exposed by the DigiKey product page, normally from `mm.digikey.com`.
+- Validate that the response is an actual decodable image before saving it.
 - Reuse an existing package or product-family image only when the package and visible construction match.
 - For modules and evaluation boards, reuse an image only for the exact board, not merely the same utilized IC or a similar board.
 - Set the visible part image field; adding only an image attachment is not sufficient.
-- Attach the exact official manufacturer datasheet only when it is available through DigiKey's `Datasheet` link.
-- Verify that the downloaded file is a real PDF for the exact MPN before attaching it.
+- Attach the exact file exposed by the supplier page's `Datasheet` field without inspecting or parsing its contents.
 - Put the manufacturer/product page in `Part Details -> Link` when the user provides one.
 - Do not use an attachment as a substitute for the part link field.
 
@@ -50,6 +52,7 @@ Use this checklist before creating or updating parts in InvenTree.
   - Example: Murata divisions should use the existing consolidated `Murata Electronics` manufacturer.
 - Manufacturer part number must be the actual MPN.
 - Supplier should be `DigiKey` for DigiKey pages.
+- Supplier should be `Mouser` only when the user explicitly provides a Mouser product link.
 - Use only `SPN` for the supplier part number.
 - Do not create both `DigiKey Part Number` and `SPN`; they are the same supplier-part identifier.
 - Supplier link should point to the exact supplier product page.
@@ -664,7 +667,7 @@ Use these categories for discrete optical detectors:
 - `Electronics / Sensors / Light Optical / Photodiodes`
 - `Electronics / Sensors / Light Optical / Phototransistors`
 
-Use these shared optical parameters when the supplier page or the exact manufacturer datasheet linked by DigiKey provides values:
+Use these shared optical parameters when the supplier product page provides values:
 
 - `Peak Wavelength` (`nm`)
 - `Spectral Range Min` (`nm`)
@@ -706,14 +709,14 @@ For Optical Sensor value mapping:
 - `Dark Current` is a generic numeric field. Preserve whether the source value is typical or maximum at the start of `Dark Current Conditions`.
   - Example: `Dark Current = 100`, `Dark Current Conditions = Maximum; V_CE=20V, E_e=0mW/cm²`.
   - Example: `Dark Current = 10`, `Dark Current Conditions = Typical; V_R=10V, E_e=0mW/cm²`.
-- Prefer the manufacturer datasheet's typical/maximum classification when DigiKey labels it differently.
+- Preserve the supplier page's typical/maximum classification unless the user provides a correction.
 - Store `Photocurrent Min` and `Photocurrent Typical` in `mA`.
   - Example: `30uA` -> `0.03`.
   - Example: `3.5uA` -> `0.0035`.
 - Store irradiance, bias voltage, and wavelength in the relevant condition field.
 - Use `Photo Response Time` when DigiKey provides one generic optical response-time value. Use `Rise Time` and `Fall Time` only when the source lists them separately.
-- Use the datasheet absolute maximum reverse voltage for `Reverse Voltage Max`, not a typical breakdown voltage.
-  - Example: PD204-6C uses `32`, while `170V` is its typical reverse breakdown voltage.
+- Do not reinterpret a typical breakdown voltage as an absolute maximum reverse voltage.
+  - Known correction: PD204-6C uses `32`, while `170V` is its typical reverse breakdown voltage.
 - Do not infer responsivity from photocurrent and irradiance. Leave it blank unless the source explicitly specifies responsivity.
 - Do not create an `Orientation` parameter solely for `Top View`; package and description normally provide enough physical context.
 
@@ -893,14 +896,13 @@ For module classification:
 
 ## Price Breaks
 
-- Use DigiKey.com for technical product attributes when needed and for DigiKey's directly exposed `Datasheet` link.
-- For DigiKey pricing, use DigiKey.de EUR price breaks only.
-- Use the exact DigiKey.de EUR table when it is accessible, even when the user did not paste the table separately.
+- Use the user-provided price-break table for supplier pricing.
+- Do not spend time scraping DigiKey or Mouser pricing; the user will provide the applicable price breaks.
 - Do not use distributor mirrors, search snippets, converted currencies, or inferred values for DigiKey pricing.
 - Do not import or display USD prices for this workflow.
 - Preserve the supplier price precision when storing price breaks.
 - Use quantity and unit price only.
-- If the exact DigiKey.de EUR table is unavailable and the user did not provide it, leave price breaks empty instead of guessing.
+- If the user does not provide price breaks, leave them empty instead of guessing or searching for them.
 
 ## Stock And Purchasing
 
@@ -919,11 +921,12 @@ For module classification:
   - Example: reuse a `SOT-23-3` image only for other `SOT-23-3` parts.
   - Current reusable package images include `TO-92-3.webp`, `TO-220-3.png`, `TO-252.png`, `SOT-23-3.png`, `SOT-363.png`, `6TSOP.webp`, `8-DIP.webp`, `14-DIP.webp`, `8-SOIC.webp`, and `24-WFQFN_Exposed_Pad.webp`.
   - Set the visible part image field, not only an attachment, when reusing an image.
-- Check local InvenTree images first and prefer an exact official product image over a generic package image.
+- Check local InvenTree images first for an exact product image. Otherwise, use the exact image linked from DigiKey.com before considering a generic package image.
 - A manufacturer family image is acceptable only when it visibly includes the exact package variant; note that it is a family image in the attachment comment.
-- Attach the official manufacturer datasheet as a separate PDF attachment only when retrieved through DigiKey's `Datasheet` link.
+- Attach the supplier-linked datasheet as a separate file attachment without reading or scanning its contents.
 - Do not search manufacturer sites, search engines, distributor mirrors, or other websites for missing datasheets.
-- Do not perform a separate web search for assets. Any retrieval made from the product page has a strict one-attempt limit covering both image and datasheet. After that attempt, continue part creation without missing assets.
+- Do not perform a general web search for assets. For DigiKey parts, use only the exact image and datasheet links exposed by the corresponding DigiKey.com product page.
+- Image and datasheet retrieval each have a strict one-quick-attempt limit. After a failed attempt, continue part creation without the missing asset.
 
 ## BJT Array Mapping
 
@@ -939,10 +942,9 @@ After creating or updating a part, verify:
 - IPN equals the part number.
 - Manufacturer and MPN are correct.
 - Supplier is DigiKey and SPN is correct.
-- Exact-MPN manufacturer datasheet is attached when DigiKey provides an accessible `Datasheet` link; otherwise it is intentionally left unattached.
-- Product image is attached and set as the visible part image when available.
+- The file under the supplier page's `Datasheet` link is copied to `Attachments` when accessible; its contents are not scanned.
+- For a DigiKey-sourced part, the exact DigiKey product image was checked, copied when accessible, validated, and set as the visible part image.
 - Parameters have no duplicated units.
-- EUR price breaks match the supplier page.
+- Price breaks exactly match the user-provided table and remain in EUR.
 - Supplier availability remains `0` unless the user explicitly requested tracking it.
-- Manufacturer-datasheet values were used where supplier attributes mislabeled a rating or condition.
 - No duplicate part, manufacturer part, supplier part, or parameter records were created.
