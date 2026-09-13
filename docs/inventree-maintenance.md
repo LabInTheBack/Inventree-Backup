@@ -1,5 +1,9 @@
 # InvenTree Maintenance Guide
 
+## Current Workspace Note
+
+For catalog/database work, use [part creation rules](part-creation-rules.md) and the [conversation handoff](inventree-handoff.md). The active workspace is `/home/den/server-data/inventree`; the `/home/denys/inventree` paths below are historical deployment examples, not verified commands for this instance. Inspect the current Compose configuration before infrastructure work. Routine part entry does not require container restarts or updates.
+
 This guide is for the local Docker Compose deployment of InvenTree with PostgreSQL, Redis, Caddy, and bind-mounted persistent data.
 
 Primary goal: never depend on Docker containers as storage. Containers can be recreated; the database, media, configuration, secrets, and plugins must be backed up.

@@ -2,6 +2,16 @@
 
 Use this checklist before creating or updating parts in InvenTree.
 
+## Scope And Efficiency
+
+- For a new conversation, read `docs/inventree-handoff.md` and this file's core rules, then only the relevant component-family section.
+- The live database is authoritative for existing parts, templates, companies and locations. Query the relevant records; do not dump or audit the whole database for routine entry.
+- Only perform the requested database task. Do not change code, plugins, Docker configuration or WLED mappings without explicit authorization.
+- A request for analysis or a proposal is read-only. Present proposed keyword additions category-wise for approval before a bulk update.
+- Preserve existing keywords unless removal is explicitly approved; append useful factual synonyms without duplicate tokens or phrases.
+- Never infer electrical specifications, manufacturer identity or compatibility from a similar part or package.
+- Keep updates and final responses concise. After each task, list remaining approved TODOs, or state that none remain.
+
 ## Source Rules
 
 - When the user provides a DigiKey.de or DigiKey.com link, use the corresponding DigiKey.com product page as the source for all part identity, manufacturer, supplier-part, description, lifecycle, packaging, and parameter data.
@@ -10,12 +20,12 @@ Use this checklist before creating or updating parts in InvenTree.
 - Do not supplement supplier data with manufacturer sites, distributor mirrors, or general web searches unless the user explicitly asks.
 - Copy the file directly from the supplier page's `Datasheet` link into the corresponding part's `Attachments`.
 - Do not open, parse, scan, or extract technical values from the datasheet. The supplier product page is the source for entered attributes.
-- If the supplier has no datasheet link or the linked file cannot be retrieved on the quick attempt, leave the datasheet unattached. The user will attach it manually.
+- If the supplier has no datasheet link or the linked file cannot be retrieved within two quick attempts, leave the datasheet unattached. The user will attach it manually.
 - Every provided DigiKey.de or DigiKey.com part link requires an exact DigiKey product-image check.
 - For image retrieval, use the corresponding DigiKey.com product page even when the provided supplier link uses DigiKey.de.
 - Follow the product image linked by DigiKey, normally hosted on `mm.digikey.com`; do not use a search-engine result or an unrelated distributor image.
-- Make only one quick DigiKey image-retrieval attempt. If the exact image is inaccessible, skip it without retries, guessed URLs, alternate sites, or additional searches.
-- Make only one quick retrieval attempt for the supplier-linked datasheet. If it is inaccessible, skip it immediately.
+- Make at most two quick DigiKey image-retrieval attempts. If the exact image remains inaccessible, skip it without guessed URLs, alternate sites, or additional searches.
+- Make at most two quick retrieval attempts for the supplier-linked datasheet. If it remains inaccessible, skip it.
 - Do not invent missing values.
 - Do not use distributor mirrors or unrelated third-party pages to fill missing technical values.
 - Do not fill fields the user did not ask for.
@@ -50,6 +60,7 @@ Use this checklist before creating or updating parts in InvenTree.
 - Check for existing equivalent manufacturer names before creating a new company.
   - Example: `Diodes Inc` and `Diodes Incorporated` should not both exist.
   - Example: Murata divisions should use the existing consolidated `Murata Electronics` manufacturer.
+  - Existing canonical names also include `Onsemi`, `Diodes Inc`, and `Vishay`; reuse the appropriate record instead of recreating supplier division names.
 - Manufacturer part number must be the actual MPN.
 - Supplier should be `DigiKey` for DigiKey pages.
 - Supplier should be `Mouser` only when the user explicitly provides a Mouser product link.
@@ -57,9 +68,19 @@ Use this checklist before creating or updating parts in InvenTree.
 - Do not create both `DigiKey Part Number` and `SPN`; they are the same supplier-part identifier.
 - Supplier link should point to the exact supplier product page.
 - If multiple DigiKey SKUs exist and the user says they bought Cut Tape, use the Cut Tape SPN.
+- Link the supplier part to the matching manufacturer-part record as well as the inventory part. Check actual identity; do not guess ambiguous links.
 
 ## Parameters
 
+- Reuse existing templates and choices before creating anything. Keep unused templates when they describe a useful, distinct property.
+- Use metric units and the current template's units. Do not recreate deleted `Hight` or `Package (in)` templates; use `Height` where appropriate.
+- Keep `Voltage` and `Voltage Rating` distinct. Keep ordinary isolation voltage and RMS `Isolation Rating` distinct.
+- Preserve typical, maximum, minimum and unspecified qualifiers. A listed value without a qualifier must not become a maximum by assumption.
+- Available neutral templates include `Input Offset Voltage` (mV), `Input Bias Current` (nA), `Supply Current` (mA), and `Quiescent Current` (uA). Use their maximum variants only for explicitly maximum values, and preserve conditions/qualifiers in notes.
+- `Supply Current Typ` uses uA; `Supply Current Max` uses mA. Never confuse total, per-channel, quiescent and operating supply current.
+- Use `uA` consistently for microamp unit labels. Existing custom units support `mOhm`, `kSPS`, `kVrms` and `dBA`; do not recreate aliases or change labels merely to repair a numeric index.
+- Use the existing mounting choice `Module / Board`, not `Module/Board`. `Module Type` supports `Sensor Module`.
+- Category defaults now provide small core sets at relevant category levels. Leave default values blank, do not add broad Electronics/Sensors/Modules defaults, and do not backfill existing parts with empty parameter records.
 - Only use parameters relevant to the part category.
 - Do not create unnecessary extra parameters just because the supplier page lists extra attributes.
 - Never put units into a parameter value when the parameter template already has units.
@@ -140,8 +161,8 @@ Use these Op Amp parameters when the DigiKey page provides values:
 - `Supply Voltage Max` (`V`)
 - `Gain Bandwidth Product` (`MHz`)
 - `Slew Rate` (`V/us`)
-- `Input Offset Voltage Max` (`mV`)
-- `Input Bias Current Max` (`nA`)
+- `Input Offset Voltage` (`mV`), or `Input Offset Voltage Max` if explicitly maximum
+- `Input Bias Current` (`nA`), or `Input Bias Current Max` if explicitly maximum
 - `Supply Current per Channel` (`mA`)
 - `Output Current per Channel` (`mA`)
 - `Rail-to-Rail`
@@ -159,11 +180,11 @@ For Op Amp value conversions:
 
 - Convert `kHz` to `MHz` for `Gain Bandwidth Product`.
   - Example: `700 kHz` -> `0.7`
-- Convert `µV` to `mV` for `Input Offset Voltage Max`.
+- Convert `µV` to `mV` for the appropriate input-offset template.
   - Example: `150 µV` -> `0.15`
 - Convert `µA` to `mA` for `Supply Current per Channel`.
   - Example: `500µA` -> `0.5`
-- Convert `pA` to `nA` for `Input Bias Current Max`.
+- Convert `pA` to `nA` for the appropriate input-bias template.
   - Example: `1 pA` -> `0.001`
 - Map `Standard (General Purpose)` to `Amplifier Type = General Purpose`.
 - Map DigiKey `Output Type = Rail-to-Rail` to `Rail-to-Rail = Output` unless the page explicitly says input and output.
@@ -242,8 +263,8 @@ Use these Gate Driver parameters when the DigiKey page provides values:
 - `Input High Voltage Min` (`V`)
 - `Peak Source Current Max` (`A`)
 - `Peak Sink Current Max` (`A`)
-- `Rise Time Max` (`ns`)
-- `Fall Time Max` (`ns`)
+- `Rise Time` (`ns`), or `Rise Time Max` if explicitly maximum
+- `Fall Time` (`ns`), or `Fall Time Max` if explicitly maximum
 - `Mounting Type`
 - `Package / Case`
 - `Supplier Device Package`
@@ -257,7 +278,7 @@ For Gate Driver value mapping:
 - Map DigiKey `Number of Drivers` to `Number of Circuits`.
 - Split `Logic Voltage - VIL, VIH` into `Input Low Voltage Max` and `Input High Voltage Min`.
 - Split `Current - Peak Output (Source, Sink)` into `Peak Source Current Max` and `Peak Sink Current Max`.
-- Split `Rise / Fall Time` into `Rise Time Max` and `Fall Time Max`.
+- Split typical `Rise / Fall Time` into neutral `Rise Time` and `Fall Time`, noting `Typical`. Use maximum templates only when explicitly maximum.
 
 ## ADC Parameters
 
@@ -304,7 +325,7 @@ Use these Linear Regulator parameters when the DigiKey page provides values:
 - `Output Current Max` (`A`)
 - `Dropout Voltage Max` (`V`)
 - `Dropout Voltage Conditions`
-- `Quiescent Current Max` (`uA`)
+- `Quiescent Current` (`uA`), or `Quiescent Current Max` if explicitly maximum
 - `PSRR Min` (`dB`)
 - `Power Dissipation @ T_C` (`W`)
 - `Power Dissipation @ T_A` (`W`)
@@ -321,7 +342,7 @@ For Linear Regulator value mapping:
 - Map DigiKey `Number of Regulators` to `Configuration` when useful.
 - For fixed regulators, use `Output Voltage`.
 - For adjustable regulators, use `Output Voltage Min` and `Output Voltage Max`.
-- Convert quiescent current to `uA`.
+- Convert quiescent current to `uA`; use neutral `Quiescent Current` unless explicitly maximum.
 - Store dropout test details in `Dropout Voltage Conditions`.
 
 ## DC-DC Converter IC Parameters
@@ -470,7 +491,7 @@ Use these USB PD Controller parameters under `Electronics / ICs / Power Manageme
 - `USB PD Role`
 - `Supply Voltage Min` (`V`)
 - `Supply Voltage Max` (`V`)
-- `Quiescent Current Max` (`uA`)
+- `Supply Current` (`mA`), or the appropriate qualified supply-current template
 - `Automotive Qualified`
 - `Mounting Type`
 - `Package / Case`
@@ -483,8 +504,8 @@ For USB PD Controller value mapping:
 - Use `USB Controller Type` for values such as `USB PD Sink Controller`, `USB PD Source Controller`, or `USB Type-C Controller`.
 - Use `USB PD Role` for `Sink`, `Source`, or `DRP` when clear from the description or page.
 - Reuse supply-voltage fields for DigiKey `Voltage - Supply`.
-- Convert DigiKey `Current - Supply` to `Quiescent Current Max` in `uA`.
-  - Example: `6mA` -> `6000`
+- Map unqualified DigiKey `Current - Supply` to `Supply Current` in mA, not to quiescent current or a maximum.
+  - Example: `6mA` -> `6`
 - Set `Automotive Qualified` only when DigiKey explicitly lists an automotive grade or qualification such as `AEC-Q100`.
 - Do not use `Data Interface` just because DigiKey lists `Applications = USB, Type-C Controller`; only use it when an actual control interface is listed.
 
@@ -641,7 +662,7 @@ Use these Timer IC parameters for ICs under `Electronics / ICs / Timers`:
 - `Frequency` (`MHz`)
 - `Supply Voltage Min` (`V`)
 - `Supply Voltage Max` (`V`)
-- `Quiescent Current Max` (`uA`)
+- `Supply Current` (`mA`), or the appropriate qualified supply-current template
 - `Output Type`
 - `Mounting Type`
 - `Package / Case`
@@ -656,8 +677,8 @@ For Timer IC value mapping:
   - Example: `555 Type, Timer/Oscillator (Single)` -> `1`
   - Example: `555 Type, Timer/Oscillator (Dual)` -> `2`
 - Use shared `Frequency` only when DigiKey lists a frequency.
-- Convert current to `uA`.
-  - Example: `10 mA` -> `10000`
+- Map unqualified `Current - Supply` to `Supply Current` in mA.
+  - Example: `10 mA` -> `10`; do not call it quiescent current or maximum.
 - Obsolete timer ICs should be `purchaseable = false` unless the user explicitly provides a purchasable supplier record.
 
 ## Optical Sensor Parameters
@@ -727,7 +748,7 @@ Use these Optocoupler parameters for ICs under `Electronics / ICs / Isolation / 
 - `Number of Circuits`
 - `Optocoupler Input Type`
 - `Output Type`
-- `Isolation Voltage` (`kV`)
+- `Isolation Rating` (`kVrms`) for explicitly RMS ratings
 - `Forward Voltage Typical` (`V`)
 - `Forward Current Max` (`mA`)
 - `Output Voltage Max` (`V`)
@@ -751,8 +772,9 @@ For Optocoupler value mapping:
 
 - Use `Optocoupler Input Type = DC` or `AC` only when the input type is clear.
 - Reuse `Output Type`; do not create a separate optocoupler output-type parameter.
-- Convert isolation voltage to `kV`.
-  - Example: `5000Vrms` -> `5`
+- For explicitly RMS isolation values, use `Isolation Rating` in kVrms.
+  - Example: `5000Vrms` -> `5` kVrms. Do not erase the RMS distinction.
+- Typical turn-on/off times must not be placed in maximum-only templates. Preserve the source timing in notes if no suitable existing template exists; do not create extra templates automatically.
 - Convert output current to `A`.
   - Example: `50mA` -> `0.05`
 - Store CTR test details in `CTR Conditions`.
@@ -816,7 +838,7 @@ Use these shared environmental parameters when listed:
 - `Supply Voltage Min` (`V`)
 - `Supply Voltage Max` (`V`)
 - `Supply Current Typ` (`uA`)
-- `Supply Current Max` (`uA`)
+- `Supply Current Max` (`mA`)
 - `Supply Current Conditions`
 - `Data Interface`
 - `Resolution` (`bit`)
@@ -892,7 +914,9 @@ For module classification:
 - Cabinet-02 Drawer-34: Environmental sensor modules.
 - Cabinet-02 Drawer-35: Motion sensor modules.
 - Cabinet-02 Drawer-36: Optical and proximity sensor modules.
-- Cabinet-02 Drawer-37: currently unassigned.
+- Cabinet-02 Drawer-37: Audio modules, including microphone and amplifier boards.
+
+This is a placement reference, not permission to rename or move any location. Check live stock before choosing a drawer.
 
 ## Price Breaks
 
@@ -906,7 +930,7 @@ For module classification:
 
 ## Stock And Purchasing
 
-- Do not record supplier availability unless explicitly requested. For this workflow, leave supplier availability at `0`.
+- Never fetch, track or populate supplier availability in this workflow. Leave the default alone on creation; do not write `0` to existing records as an unsolicited cleanup.
 - Record packaging if listed.
 - Record lifecycle/status notes only when listed.
 - Do not create stock items unless explicitly requested.
@@ -916,6 +940,11 @@ For module classification:
 - If the part already exists, treat a provided quantity as additional stock to add, not as the final total, unless the user explicitly says it is the total count.
 - Link created stock items to the matching supplier part when the stock came from that supplier part.
 - Supplier-part stock views can show `0` if the stock item is not linked to the supplier part.
+- Supplier-part local stock totals are different from supplier availability. Keep both relationships intact: stock item -> supplier part -> manufacturer part.
+- NEVER rename drawers. Warehouse names remain `Drawer-##`; requested names are suggestions for physical printed labels only.
+- Resolve `C1Dxx` and `C2Dxx` under the correct cabinet in `Berlin Home`. Do not infer a cabinet from an old conversation default when context is unclear.
+- Cabinet-01 Drawer-44 was subdivided into Drawer-44 through Drawer-47. Preserve the existing assignments, including the intentional shared LED 147; do not repair or renumber them.
+- Drawer-41 through Drawer-43 are larger than Drawer-01 through Drawer-40. Consider physical fit when suggesting locations; Cabinet-01's former large Drawer-44 is now subdivided.
 - Use `THT` in keywords for through-hole parts and `SMD` for surface-mount parts.
 - Reuse package images only when the package is actually the same.
   - Example: reuse a `SOT-23-3` image only for other `SOT-23-3` parts.
@@ -926,7 +955,7 @@ For module classification:
 - Attach the supplier-linked datasheet as a separate file attachment without reading or scanning its contents.
 - Do not search manufacturer sites, search engines, distributor mirrors, or other websites for missing datasheets.
 - Do not perform a general web search for assets. For DigiKey parts, use only the exact image and datasheet links exposed by the corresponding DigiKey.com product page.
-- Image and datasheet retrieval each have a strict one-quick-attempt limit. After a failed attempt, continue part creation without the missing asset.
+- Image and datasheet retrieval each have a strict two-quick-attempt limit. After two failed attempts, continue part creation without the missing asset.
 
 ## BJT Array Mapping
 
@@ -946,5 +975,7 @@ After creating or updating a part, verify:
 - For a DigiKey-sourced part, the exact DigiKey product image was checked, copied when accessible, validated, and set as the visible part image.
 - Parameters have no duplicated units.
 - Price breaks exactly match the user-provided table and remain in EUR.
-- Supplier availability remains `0` unless the user explicitly requested tracking it.
+- Supplier availability was not fetched or changed.
+- Stock quantity is additive when requested, and supplier/manufacturer links are correct.
+- Existing drawer names, unrelated records and WLED mappings remain unchanged.
 - No duplicate part, manufacturer part, supplier part, or parameter records were created.
