@@ -1,367 +1,134 @@
-# InvenTree Maintenance Guide
+# Deployment and maintenance
 
-## Current Workspace Note
+Workspace: `/home/den/server-data/inventree`. Run the commands below from that
+directory. Inventory procedures are in [warehouse.md](warehouse.md); plugin
+changes and asset activation are in [wled-locator-plus.md](wled-locator-plus.md).
+Routine inventory entry and documentation edits require no restart.
 
-For catalog/database work, use [part creation rules](part-creation-rules.md) and the [conversation handoff](inventree-handoff.md). The active workspace is `/home/den/server-data/inventree`; the `/home/denys/inventree` paths below are historical deployment examples, not verified commands for this instance. Inspect the current Compose configuration before infrastructure work. Routine part entry does not require container restarts or updates.
+## Deployment files and storage
 
-This guide is for the local Docker Compose deployment of InvenTree with PostgreSQL, Redis, Caddy, and bind-mounted persistent data.
+| File/service | Role |
+|---|---|
+| [docker-compose.yml](../docker-compose.yml) | `inventree-server`, `inventree-worker`, PostgreSQL 17, Redis 7 and Caddy. InvenTree image tag comes from `INVENTREE_TAG`. |
+| [docker-compose.override.yml](../docker-compose.override.yml) | Server/proxy join external `proxy_net`; Caddy's host ports are reset. Preserve this topology when changing routing. |
+| [Caddyfile](../Caddyfile) | Proxies the application, serves static files and authenticates media requests through InvenTree. |
+| `.env`, `data/config.yaml` | Environment/application settings, including sensitive values. Do not copy their contents into documentation. |
+| `data/secret_key.txt`, `data/oidc.pem` | Secret/key material that must survive a deployment restore. |
+| `data/plugins/`, `data/plugins.txt` | Custom plugin source and additional supplier-panel dependency. |
+| `data/media/`, `data/pgdb/`, `data/backup/` | Uploaded assets, PostgreSQL data and native backups. The data mount appears as `/home/inventree/data` inside InvenTree. |
+| `data/static/`, `data/redis/`, `data/caddy/` | Generated/static assets, cache and proxy state. Redis is not the inventory source of truth. |
 
-Primary goal: never depend on Docker containers as storage. Containers can be recreated; the database, media, configuration, secrets, and plugins must be backed up.
+The Caddy mounts also use the shared data directory for logs and proxy state;
+consult Compose before moving files. The external proxy/network configuration is
+outside this repository. The application uses Django, PostgreSQL and Redis;
+`data/data.json` and root SQL dumps are exports, not live inventory.
 
-## Backup Strategy
-
-### What To Back Up
-
-Back up these items:
-
-```text
-/home/denys/inventree/docker-compose.yml
-/home/denys/inventree/.env
-/home/denys/inventree/Caddyfile
-/home/denys/inventree/AGENTS.md
-/home/denys/inventree/README.md
-/home/denys/inventree/docs/
-/home/denys/inventree/inventree-data/config.yaml
-/home/denys/inventree/inventree-data/secret_key.txt
-/home/denys/inventree/inventree-data/media/
-/home/denys/inventree/inventree-data/plugins/
-/home/denys/inventree/inventree-data/backup/
-```
-
-Also back up the PostgreSQL database using InvenTree's backup command or `pg_dump`.
-
-Do not rely on a live copy of `inventree-data/pgdb/` as the only database backup. A live filesystem copy of PostgreSQL data can be inconsistent. Use InvenTree backup or `pg_dump`.
-
-Redis data in `inventree-data/redis/` is cache data and is not the main source of truth.
-
-### Schedule
-
-Recommended minimum:
-
-```text
-Daily: InvenTree native backup of database + media.
-Daily: Copy newest backup files to another machine, NAS, external disk, or cloud storage.
-Weekly: Full archive of Compose files, .env, docs, config, secret key, plugins, media, and backup folder.
-Monthly: Test restore on a separate throwaway instance.
-```
-
-Keep at least:
-
-```text
-7 daily backups
-4 weekly backups
-3 monthly backups
-```
-
-### Manual Backup
-
-Run from the Compose directory:
+## Inspect status
 
 ```bash
-cd /home/denys/inventree
-docker compose run --rm inventree-server invoke backup
-docker compose run --rm inventree-server invoke listbackups
-```
-
-This uses InvenTree's native backup system for database and media files.
-
-Optional raw PostgreSQL dump:
-
-```bash
-cd /home/denys/inventree
-mkdir -p /home/denys/inventree-backups
-docker compose exec -T inventree-db sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' | gzip > /home/denys/inventree-backups/inventree-postgres-$(date +%F-%H%M).sql.gz
-```
-
-Weekly configuration and file archive:
-
-```bash
-cd /home/denys/inventree
-mkdir -p /home/denys/inventree-backups
-tar --exclude='inventree-data/pgdb' --exclude='inventree-data/redis' --exclude='__pycache__' -czf /home/denys/inventree-backups/inventree-files-$(date +%F-%H%M).tgz docker-compose.yml .env Caddyfile AGENTS.md README.md docs inventree-data/config.yaml inventree-data/secret_key.txt inventree-data/media inventree-data/plugins inventree-data/backup
-```
-
-### Automated Backup
-
-Example cron entries:
-
-```cron
-15 2 * * * cd /home/denys/inventree && docker compose run --rm inventree-server invoke backup --quiet >> /home/denys/inventree/inventree-data/backup/backup.log 2>&1
-45 2 * * * rsync -a --delete /home/denys/inventree/inventree-data/backup/ /mnt/backup/inventree/native/
-30 3 * * 0 cd /home/denys/inventree && tar --exclude='inventree-data/pgdb' --exclude='inventree-data/redis' --exclude='__pycache__' -czf /mnt/backup/inventree/files/inventree-files-$(date +\%F).tgz docker-compose.yml .env Caddyfile AGENTS.md README.md docs inventree-data/config.yaml inventree-data/secret_key.txt inventree-data/media inventree-data/plugins inventree-data/backup
-```
-
-Replace `/mnt/backup` with a real backup disk, NAS mount, or synced folder. Do not store the only backup on the same disk or Docker VM.
-
-Protect backup storage like a password vault. The archives include `.env`, `secret_key.txt`, database contents, uploaded files, and plugin settings.
-
-### Backup Verification
-
-Check that backups exist:
-
-```bash
-cd /home/denys/inventree
-docker compose run --rm inventree-server invoke listbackups
-ls -lh inventree-data/backup
-find inventree-data/backup -type f -mtime -2 -ls
-```
-
-Check the weekly archive can be read:
-
-```bash
-tar -tzf /mnt/backup/inventree/files/inventree-files-YYYY-MM-DD.tgz | head
-```
-
-Check a raw PostgreSQL dump:
-
-```bash
-gzip -t /home/denys/inventree-backups/inventree-postgres-YYYY-MM-DD-HHMM.sql.gz
-```
-
-Best verification: restore the newest backup into a separate test InvenTree instance before entering important production data.
-
-## Restore Strategy
-
-Restore should be tested before serious use. The first restore test is more important than any backup schedule.
-
-Basic restore pattern:
-
-```bash
-cd /home/denys/inventree
-docker compose down
-```
-
-Restore the deployment files first:
-
-```bash
-tar -xzf /path/to/inventree-files-YYYY-MM-DD.tgz -C /home/denys/inventree
-```
-
-Place the selected InvenTree database and media backup files in:
-
-```text
-/home/denys/inventree/inventree-data/backup/
-```
-
-Run restore:
-
-```bash
-cd /home/denys/inventree
-docker compose run --rm inventree-server invoke restore
-docker compose up -d
-```
-
-If restoring specific files:
-
-```bash
-cd /home/denys/inventree
-docker compose run --rm inventree-server invoke restore -p /home/inventree/data/backup --db-file <database-backup-file> --media-file <media-backup-file>
-docker compose up -d
-```
-
-After restore:
-
-```bash
-docker compose ps
-docker compose logs --tail=100 inventree-server
-docker compose logs --tail=100 inventree-worker
-```
-
-Check in the UI:
-
-```text
-Login works.
-Parts and stock records exist.
-Uploaded images/files load.
-Plugins load.
-WLED controller settings and StockLocation metadata are present if the database was restored.
-```
-
-### Restore Mistakes To Avoid
-
-Avoid these:
-
-* Restoring with a different InvenTree version than the backup was created with.
-* Restoring only the database and forgetting media uploads.
-* Losing `secret_key.txt`; keep the same key for the same deployment.
-* Treating `inventree-data/pgdb/` copied while PostgreSQL is running as a reliable backup.
-* Keeping backups only inside the same VM, disk, or Docker volume.
-* Running destructive test restores on the real production instance.
-* Updating first and only then checking whether backups are usable.
-
-## Update Strategy
-
-Update when there is a useful bug fix, security fix, or planned maintenance window. For a low-admin home deployment, monthly or every few months is reasonable. Avoid using `latest` for serious data. Prefer `stable` or a pinned release tag, and record the version before updating.
-
-Before every update:
-
-```bash
-cd /home/denys/inventree
+cd /home/den/server-data/inventree
 docker compose ps
 docker compose images
-docker compose run --rm inventree-server invoke backup
+docker compose logs --tail=100 inventree-server inventree-worker
+df -h .
+du -sh data/media data/backup
+docker compose exec -T inventree-db sh -c \
+  'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+```
+
+Check repeated restarts, database/migration errors, missing media, permissions,
+worker failures and disk space. Logs may contain sensitive data; inspect locally
+and redact excerpts before sharing. This guide does not assert that schedules,
+off-server copies or a successful restore test are already configured.
+
+## Back up
+
+Use the existing [manual backup script](../manual-inventree-backup.sh):
+
+```bash
+cd /home/den/server-data/inventree
+bash ./manual-inventree-backup.sh
+```
+
+It runs native database/media backup and lists the results. Its final check only
+requires files within the recent-file window (two days by default); it does not
+prove archive integrity or a successful restore. Defaults are this workspace and
+`data/backup`; `INVENTREE_DIR`, `BACKUP_DIR` and `RETENTION_CHECK_DAYS` can override
+the script's paths/check window.
+
+For a manual listing:
+
+```bash
 docker compose run --rm inventree-server invoke listbackups
 ```
 
-Copy backups off the server before continuing.
+Copy the selected database and media archives to separate storage. Also preserve
+both Compose files, `.env`, `Caddyfile`, scripts, documentation, `data/config.yaml`,
+secret/key files, custom plugins and dependency list. Native database/media
+archives do not replace that deployment-file backup. Protect copies containing
+credentials or inventory data. A live copy of `data/pgdb/` is not a substitute for
+a database backup. Test restoration on an isolated instance before relying on it.
 
-Safe update procedure:
+## Retention
+
+[prune-inventree-backups.sh](../prune-inventree-backups.sh) uses `find -mtime +10`
+for `InvenTree-db-*` and `InvenTree-media-*` files under `data/backup`. Review first:
 
 ```bash
-cd /home/denys/inventree
-docker compose down
-docker compose pull
-docker compose run --rm inventree-server invoke update
+bash ./prune-inventree-backups.sh
+```
+
+Only add `--delete` when intentionally deleting the listed files. The script does
+not implement weekly/monthly tiers, off-server copies or scheduling. Keep any
+long-term copies outside its target directory. No cron entries in this guide
+should be interpreted as jobs installed on the server.
+
+## Restore
+
+Restore replaces data; test on a separate instance first. Use the backup's
+InvenTree version and restore the deployment configuration, secret/key files and
+plugin source as well as database/media. Plugin settings and WLED location
+metadata live in the database. Use explicit matching archive filenames rather
+than allowing selection of unrelated latest files.
+
+For an authorized deployment restore, put the chosen archives in `data/backup`
+and replace both uppercase filenames below with actual basenames:
+
+```bash
+cd /home/den/server-data/inventree
+docker compose stop inventree-server inventree-worker inventree-proxy
+docker compose up -d inventree-db inventree-cache
+docker compose run --rm inventree-server invoke restore \
+  --path /home/inventree/data/backup \
+  --db-file DATABASE_BACKUP_FILENAME \
+  --media-file MEDIA_BACKUP_FILENAME
 docker compose up -d
 ```
 
-After update:
+These task options were checked against the installed `tasks.py`; the procedure
+has not been exercised as a restore test during documentation cleanup. After a
+successful restore, check login, parts/stock, images/attachments, worker, plugin
+settings and mappings. Physical locate testing remains an explicit hardware action.
 
-```bash
-docker compose ps
-docker compose logs --tail=100 inventree-server
-docker compose logs --tail=100 inventree-worker
-docker compose logs --tail=100 inventree-db
-```
+## Update and rollback
 
-Check in the UI:
+1. Record the current image version, take a fresh database/media backup and copy
+   it plus deployment files off-server before pulling a replacement image.
+2. Choose the intended `INVENTREE_TAG`; a pinned release makes rollback clearer
+   than a moving tag. Preserve the external network and persistent mounts.
+3. Run the existing [update script](../update-inventree.sh) in the maintenance
+   window: `bash ./update-inventree.sh`.
+4. Inspect status/logs and verify login, stock, uploads, plugin pages and worker.
 
-```text
-Login works.
-Parts, stock, images, reports, and plugins load.
-Background worker is running.
-No repeated errors appear in logs.
-```
+The wrapper stops the stack, pulls images, runs `invoke update` and starts it.
+The installed update task backs up by default unless `--skip-backup` is passed,
+but that happens after the new image has been pulled. It does not replace the
+explicit backup made using the previous working deployment or its off-server copy.
+If the script fails, inspect the failure; it may leave services stopped.
 
-Rollback if an update breaks:
+For rollback, stop application writes, restore the recorded previous image tag
+and the matching pre-update database/media/configuration/plugin backup, then
+start and verify. Downgrading only the image may not reverse schema changes.
 
-1. Stop containers.
-2. Set `INVENTREE_TAG` in `.env` back to the previous known-good tag.
-3. Pull that image.
-4. Restore the backup created immediately before the update.
-5. Start containers.
-
-Commands:
-
-```bash
-cd /home/denys/inventree
-docker compose down
-docker compose pull
-docker compose run --rm inventree-server invoke restore
-docker compose up -d
-```
-
-Rollback is much easier if `INVENTREE_TAG` is pinned to a specific release instead of floating on `stable`.
-
-## Monitoring And Maintenance
-
-### Container Health
-
-```bash
-cd /home/denys/inventree
-docker compose ps
-docker compose logs --tail=100 inventree-server
-docker compose logs --tail=100 inventree-worker
-docker compose logs --tail=100 inventree-db
-docker compose logs --tail=100 inventree-cache
-```
-
-Warning signs:
-
-```text
-Containers restarting repeatedly.
-Database connection errors.
-Migration errors.
-Permission errors under /home/inventree/data.
-Worker not running.
-Repeated backup failures.
-HTTP 500 errors.
-Missing media/static file errors.
-```
-
-### Disk Usage
-
-```bash
-df -h /home/denys/inventree
-du -sh /home/denys/inventree/inventree-data
-du -sh /home/denys/inventree/inventree-data/media
-du -sh /home/denys/inventree/inventree-data/backup
-docker system df
-```
-
-Do not let the disk fill up. PostgreSQL and backups can both fail badly on a full disk.
-
-### Database Status
-
-```bash
-cd /home/denys/inventree
-docker compose exec inventree-db sh -c 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
-```
-
-### Backup Health
-
-```bash
-cd /home/denys/inventree
-docker compose run --rm inventree-server invoke listbackups
-find inventree-data/backup -type f -mtime -2 -ls
-ls -lh /mnt/backup/inventree/native 2>/dev/null
-ls -lh /mnt/backup/inventree/files 2>/dev/null
-```
-
-## Practical Checklist
-
-### Daily
-
-```bash
-cd /home/denys/inventree
-docker compose ps
-find inventree-data/backup -type f -mtime -2 -ls
-df -h /home/denys/inventree
-```
-
-Confirm containers are up, a recent backup exists, and disk space is not low.
-
-### Weekly
-
-```bash
-cd /home/denys/inventree
-docker compose run --rm inventree-server invoke listbackups
-du -sh inventree-data inventree-data/media inventree-data/backup
-tar -tzf /mnt/backup/inventree/files/inventree-files-YYYY-MM-DD.tgz | head
-```
-
-Confirm backups are visible, off-server copy exists, and the weekly archive can be opened.
-
-### Before Every Update
-
-```bash
-cd /home/denys/inventree
-docker compose ps
-docker compose images
-docker compose run --rm inventree-server invoke backup
-docker compose run --rm inventree-server invoke listbackups
-rsync -a inventree-data/backup/ /mnt/backup/inventree/native/
-```
-
-Only update after the fresh backup is copied off the server.
-
-### After Every Update
-
-```bash
-cd /home/denys/inventree
-docker compose ps
-docker compose logs --tail=100 inventree-server
-docker compose logs --tail=100 inventree-worker
-```
-
-Then log in and check records, uploads, plugins, and the worker.
-
-## Official References
-
-Official InvenTree documentation used for this guide:
-
-* Docker production install: `https://docs.inventree.org/en/latest/start/docker_install/`
-* Docker setup and persistent data: `https://docs.inventree.org/en/latest/start/docker/`
-* Backup and restore: `https://docs.inventree.org/en/latest/start/backup/`
-* Configuration and file storage: `https://docs.inventree.org/en/latest/start/config/`
-* Invoke tool in Docker mode: `https://docs.inventree.org/en/latest/start/invoke/`
+Backup/restore/static command behaviour above was checked against installed
+source on 2026-11-11. Recheck `invoke TASK --help` when upgrading InvenTree.

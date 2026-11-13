@@ -5,11 +5,13 @@ from __future__ import annotations
 import json
 import logging
 import re
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from .constants import DEFAULT_CONTROLLER_LABEL
+from .locking import hardware_action, serialized_action
 
 
 logger = logging.getLogger("inventree.plugin.wled_locator_plus")
@@ -65,6 +67,25 @@ class WledClient:
     def __init__(self, plugin):
         self.plugin = plugin
         self._configured_controllers_cache = None
+        self._led_count_cache = {}
+        self._normalized_controllers = None
+
+    def invalidate_configuration(self) -> None:
+        """Discard derived values after a controller setting is changed."""
+        self._configured_controllers_cache = None
+        self._led_count_cache.clear()
+
+    @contextmanager
+    def execution(self):
+        """Reuse segment normalization during one clear-and-light sequence."""
+        previous = self._normalized_controllers
+        if previous is None:
+            self._normalized_controllers = set()
+        try:
+            with hardware_action():
+                yield
+        finally:
+            self._normalized_controllers = previous
 
     def normalize_base_url(self, address: str) -> str:
         """Return a normalized controller base URL."""
@@ -85,6 +106,7 @@ class WledClient:
         text = str(self.plugin.get_setting("WLED_CONTROLLERS", backup_value="") or "").strip()
 
         if not text:
+            self._configured_controllers_cache = []
             return []
 
         try:
@@ -109,6 +131,7 @@ class WledClient:
             controllers.append(controller)
 
         if not controllers:
+            self._configured_controllers_cache = []
             return []
 
         if not any(controller["primary"] for controller in controllers):
@@ -178,6 +201,7 @@ class WledClient:
             serialized[0]["primary"] = True
 
         self.plugin.set_setting("WLED_CONTROLLERS", json.dumps(serialized, indent=2))
+        self.invalidate_configuration()
         self._configured_controllers_cache = [dict(controller) for controller in serialized]
         return serialized
 
@@ -264,7 +288,7 @@ class WledClient:
         """Return configured LED count."""
         return self.get_controller_max_leds()
 
-    def get_controller_max_leds(self, label: str | None = None) -> int:
+    def get_controller_max_leds(self, label: str | None = None, *, discover: bool = True) -> int:
         """Return LED count for a controller.
 
         Normal locate/test/register paths must not depend on repeated live WLED
@@ -276,18 +300,35 @@ class WledClient:
         if controller.get("max_leds"):
             return int(controller["max_leds"])
 
+        if not discover:
+            raise ValueError(
+                f"Controller {controller['label']} has no saved LED count; sync or save it in Plugin Configuration"
+            )
+
+        label = controller["label"]
+        if label in self._led_count_cache:
+            cached = self._led_count_cache[label]
+            if isinstance(cached, ValueError):
+                raise ValueError(str(cached))
+            return cached
+
         try:
             info = self.get_info(controller["label"])
             led_count = info.get("leds", {}).get("count")
             if isinstance(led_count, int) and led_count > 0:
+                self._led_count_cache[label] = led_count
                 return led_count
         except WledRequestError as exc:
-            raise ValueError(
+            error = ValueError(
                 f"Controller {controller['label']} has no saved LED count and "
                 f"WLED auto-detection failed: {exc}"
-            ) from exc
+            )
+            self._led_count_cache[label] = error
+            raise error from exc
 
-        raise ValueError(f"Controller {controller['label']} has no saved or detectable LED count")
+        error = ValueError(f"Controller {controller['label']} has no saved or detectable LED count")
+        self._led_count_cache[label] = error
+        raise error
 
     def get_timeout(self) -> int:
         """Return configured HTTP timeout."""
@@ -298,12 +339,12 @@ class WledClient:
 
         return timeout
 
-    def validate_led_index(self, led_index: int, controller_label: str | None = None) -> int:
+    def validate_led_index(self, led_index: int, controller_label: str | None = None, *, discover: bool = True) -> int:
         """Validate and return an LED index."""
         if not isinstance(led_index, int):
             raise ValueError("LED index must be an integer")
 
-        max_leds = self.get_controller_max_leds(controller_label)
+        max_leds = self.get_controller_max_leds(controller_label, discover=discover)
 
         if led_index < 0 or led_index >= max_leds:
             raise ValueError(f"LED index must be between 0 and {max_leds - 1}")
@@ -354,6 +395,10 @@ class WledClient:
         """Return WLED /json/info for a controller."""
         return self.request_json(controller_label, "/json/info")
 
+    def get_state(self, controller_label: str | None = None) -> dict:
+        """Return the current WLED state, including its segment boundaries."""
+        return self.request_json(controller_label, "/json/state")
+
     def get_info_for_address(self, address: str) -> dict:
         """Return WLED /json/info for an address before it is saved."""
         url = f"{self.normalize_base_url(address)}/json/info"
@@ -381,6 +426,7 @@ class WledClient:
             })
             raise WledRequestError(f"WLED info sync failed ({exc.__class__.__name__}): {exc}") from exc
 
+    @serialized_action
     def post_state(self, payload: dict, controller_label: str | None = None) -> dict:
         """POST a JSON state payload to WLED."""
         return self.request_json(controller_label, "/json/state", payload=payload, method="POST")
@@ -396,14 +442,119 @@ class WledClient:
         """Return the last WLED request result for diagnostics."""
         return getattr(self.plugin, "_wled_locator_last_request", None)
 
+    def get_segments(self, controller_label: str | None = None) -> list[dict]:
+        """Return usable WLED segments, ordered by their physical LED range."""
+        state = self.get_state(controller_label)
+        raw_segments = state.get("seg", [])
+
+        if isinstance(raw_segments, dict):
+            raw_segments = [raw_segments]
+
+        segments = []
+        for index, segment in enumerate(raw_segments):
+            if not isinstance(segment, dict):
+                continue
+
+            try:
+                start = int(segment["start"])
+                stop = int(segment["stop"])
+                segment_id = int(segment.get("id", index))
+            except (KeyError, TypeError, ValueError):
+                continue
+
+            if stop <= start:
+                continue
+
+            segments.append({"id": segment_id, "start": start, "stop": stop})
+
+        return sorted(segments, key=lambda segment: (segment["start"], segment["id"]))
+
+    def segment_led_data(
+        self,
+        led_indices: list[int],
+        color: str,
+        controller_label: str | None = None,
+    ) -> list[dict]:
+        """Translate global LED indexes into WLED's segment-relative indexes."""
+        validated_leds = [
+            self.validate_led_index(led_index, controller_label)
+            for led_index in led_indices
+        ]
+        segments = self.get_segments(controller_label)
+
+        if not segments:
+            led_data = []
+            for led in validated_leds:
+                led_data.extend([led, color])
+            return [{"i": led_data}]
+
+        grouped = {segment["id"]: [] for segment in segments}
+        for led_index in validated_leds:
+            segment = next(
+                (
+                    segment
+                    for segment in segments
+                    if segment["start"] <= led_index < segment["stop"]
+                ),
+                None,
+            )
+            if segment is None:
+                raise ValueError(
+                    f"LED index {led_index} is not covered by a WLED segment"
+                )
+
+            grouped[segment["id"]].extend(
+                [led_index - segment["start"], color]
+            )
+
+        return [
+            {"id": segment["id"], "i": grouped[segment["id"]]}
+            for segment in segments
+            if grouped[segment["id"]]
+        ]
+
+    @serialized_action
+    def normalize_segments(self, controller_label: str | None = None) -> bool:
+        """Collapse WLED's segments into one full-strip locator segment."""
+        label = self.get_controller(controller_label)["label"]
+        if self._normalized_controllers is not None and label in self._normalized_controllers:
+            return False
+        max_leds = self.get_controller_max_leds(controller_label)
+        segments = self.get_segments(controller_label)
+
+        if segments == [{"id": 0, "start": 0, "stop": max_leds}]:
+            if self._normalized_controllers is not None:
+                self._normalized_controllers.add(label)
+            return False
+
+        payload_segments = [{"id": 0, "start": 0, "stop": max_leds}]
+        payload_segments.extend(
+            {"id": segment["id"], "stop": 0}
+            for segment in segments
+            if segment["id"] != 0
+        )
+        self.post_state(
+            {"seg": payload_segments},
+            controller_label=controller_label,
+        )
+        if self._normalized_controllers is not None:
+            self._normalized_controllers.add(label)
+        return True
+
+    @serialized_action
     def clear_leds(self, controller_label: str | None = None) -> dict:
         """Clear the configured LED range."""
         max_leds = self.get_controller_max_leds(controller_label)
         color = normalize_hex_color(
             self.plugin.get_setting("CLEAR_COLOR", backup_value="000000")
         )
-        return self.post_state({"seg": {"i": [0, max_leds, color]}}, controller_label=controller_label)
+        self.normalize_segments(controller_label)
+        return self.post_state(
+            {"seg": {"id": 0, "i": [0, max_leds, color]}},
+            controller_label=controller_label,
+        )
 
+    @serialized_action
     def clear_all_controllers(self) -> dict:
         """Clear every configured WLED controller."""
         results = {}
@@ -419,19 +570,22 @@ class WledClient:
 
     def set_led(self, led_index: int, controller_label: str | None = None) -> dict:
         """Light a single LED with the marker color."""
-        led_index = self.validate_led_index(led_index, controller_label)
-        color = self.get_controller(controller_label).get("marker_color") or "FF0000"
-        return self.post_state({"seg": {"i": [led_index, color]}}, controller_label=controller_label)
+        return self.set_leds([led_index], controller_label)
 
+    @serialized_action
     def set_leds(self, led_indices: list[int], controller_label: str | None = None) -> dict:
         """Light multiple LEDs in one WLED request."""
         color = self.get_controller(controller_label).get("marker_color") or "FF0000"
         led_data = []
-
         for led_index in led_indices:
             led_data.extend([self.validate_led_index(led_index, controller_label), color])
-
-        return self.post_state({"seg": {"i": led_data}}, controller_label=controller_label)
+        self.normalize_segments(controller_label)
+        # normalize_segments guarantees segment zero spans the full strip, so
+        # physical indexes are already segment-relative. No second GET needed.
+        return self.post_state(
+            {"seg": [{"id": 0, "i": led_data}]},
+            controller_label=controller_label,
+        )
 
     def off(self) -> dict:
         """Turn off all configured LEDs."""

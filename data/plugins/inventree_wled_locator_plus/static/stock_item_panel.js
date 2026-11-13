@@ -6,7 +6,6 @@ import {
     compactIndicatorText,
     disableForm,
     displayIndicators,
-    displayLed,
     displayLedList,
     enableForm,
     escapeHtml,
@@ -20,6 +19,9 @@ import {
     registerLedUrl,
     resultStyle,
     runJsonRequest,
+    registerPanel,
+    setControlDisabled,
+    withPanelLoading,
     splitLocationPath,
     testLedUrl,
 } from "./panel_common.js";
@@ -31,178 +33,89 @@ export function renderStockItemPanel(target, data) {
 }
 
 function renderStockItemLocator(target, data, options) {
-    if (!target) {
-        console.error("WLED Locator Plus: no StockItem external indicator panel target provided");
-        return;
-    }
-
+    if (!target) return;
     const context = data?.context || {};
     const locateUrl = context.locate_url;
     const previewUrl = context.preview_url;
-    const registerLocationUrlBase = context.register_location_url_base || "/plugin/wled-locator-plus/register/location/";
-    const registerLocationUrlSuffix = context.register_location_url_suffix || "/led/";
-    const testUrlBase = context.test_url_base || "/plugin/wled-locator-plus/test/";
-    const testControllerUrlBase = context.test_controller_url_base || "/plugin/wled-locator-plus/test/";
-    const pluginPageUrl = context.plugin_page_url || "/plugin/wled-locator-plus/";
-    const maxLed = Number.isInteger(context.max_led) ? context.max_led : 58;
+    const maxLed = Number.isInteger(context.max_led) ? context.max_led : -1;
     const controllers = Array.isArray(context.controllers) ? context.controllers : [];
-
-    if (!locateUrl) {
-        target.innerHTML = "<p>External indicator is missing the stock item locate URL.</p>";
-        return;
-    }
-
+    if (!locateUrl) { target.textContent = "External indicator is missing the stock item locate URL."; return; }
     target.innerHTML = `
         <div style="display: grid; gap: 0.75rem; max-width: 42rem;">
-            <p style="margin: 0;">
-                ${escapeHtml(options.description)}
-            </p>
-
-            <div data-wled-preview style="${previewStyle()}">
-                Loading stock item mapping...
-            </div>
-
+            <p style="margin: 0;">${escapeHtml(options.description)}</p>
+            <div data-wled-preview style="${previewStyle()}">Loading stock item mapping...</div>
+            <button type="button" data-wled-retry-preview hidden>Retry preview</button>
             <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
-                <button type="button" data-wled-locate style="${buttonStyle("#2364aa")}">
-                    Locate This Stock Item
-                </button>
+                <button type="button" data-wled-locate disabled style="${buttonStyle("#2364aa")}">Locate This Stock Item</button>
                 ${openDashboardButtonHtml()}
             </div>
-
-            ${ledFormHtml(maxLed, "", controllers, context.default_controller || context.primary_controller || "")}
-
+            ${ledFormHtml(maxLed, "", controllers, context.default_controller || "")}
             <div data-wled-result style="${resultStyle()}"></div>
-        </div>
-    `;
-
+        </div>`;
+    registerPanel(target, context);
+    bindDashboardButton(target, context.plugin_page_url);
     const locateButton = target.querySelector("[data-wled-locate]");
-    const testButton = target.querySelector("[data-wled-test]");
-    const clearButton = target.querySelector("[data-wled-clear]");
     const form = target.querySelector("[data-wled-map-form]");
     const preview = target.querySelector("[data-wled-preview]");
     const result = target.querySelector("[data-wled-result]");
+    const retry = target.querySelector("[data-wled-retry-preview]");
     let assignedLocationId = null;
 
-    bindDashboardButton(target, pluginPageUrl);
-
-    if (previewUrl) {
-        loadPreview(previewUrl, preview, form, locateButton).then((payload) => {
-            assignedLocationId = payload?.location?.id || null;
-        });
-    } else {
-        preview.textContent = "Stock item preview URL is not configured.";
-        disableForm(form, "Stock item preview URL is not configured.");
-    }
-
-    locateButton.addEventListener("click", async () => {
-        await runJsonRequest(locateUrl, locateButton, result, "Locating...", summarizePayload);
-    });
-
-    testButton.addEventListener("click", async () => {
-        const leds = getLedValues(form, maxLed);
-        if (!leds.length) {
-            result.textContent = ledInputMessage(form, maxLed);
-            return;
-        }
-
-        await runJsonRequest(testLedUrl(testControllerUrlBase || testUrlBase, form, leds), testButton, result, "Testing LED...", summarizePayload);
-    });
-
-    clearButton.addEventListener("click", async () => {
-        if (!assignedLocationId) {
-            result.textContent = "This stock item has no assigned stock location to clear.";
-            return;
-        }
-
-        if (!window.confirm("Clear the external indicator mapping for this stock item's StockLocation?")) {
-            return;
-        }
-
-        const payload = await runJsonRequest(
-            clearMappingUrl(assignedLocationId),
-            clearButton,
-            result,
-            "Clearing mapping...",
-            summarizePayload
-        );
-
-        if (payload?.success) {
-            await loadPreview(previewUrl, preview, form, locateButton);
-        }
-    });
-
-    form.addEventListener("submit", async (event) => {
-        event.preventDefault();
-
-        if (!assignedLocationId) {
-            result.textContent = "This stock item has no assigned stock location to save an external indicator against.";
-            return;
-        }
-
-        const leds = getLedValues(form, maxLed);
-        if (!leds.length) {
-            result.textContent = ledInputMessage(form, maxLed);
-            return;
-        }
-
-        const saveButton = form.querySelector("button[type='submit']");
-        const payload = await runJsonRequest(
-            registerLedUrl({
-                registerLocationUrlBase,
-                registerLocationUrlSuffix,
-                registerLocationControllerUrlBase: context.register_location_controller_url_base,
-            }, assignedLocationId, form, leds),
-            saveButton,
-            result,
-            "Saving mapping...",
-            summarizePayload
-        );
-
-        if (payload?.success) {
-            await loadPreview(previewUrl, preview, form, locateButton);
-            assignedLocationId = payload?.location?.id || assignedLocationId;
-        }
-    });
-}
-
-async function loadPreview(url, preview, form, locateButton) {
-    try {
-        const response = await fetchJson(url);
-        preview.innerHTML = renderPreview(response);
-
-        const locationId = response?.location?.id;
-        const input = form.querySelector("input[name='led']");
-
-        if (locationId) {
-            enableForm(form);
-            input.value = Array.isArray(response?.leds) && response.leds.length
-                ? displayLedList(response.leds)
-                : displayLed(response?.led);
-            const controllerSelect = form.querySelector("select[name='controller']");
-            if (controllerSelect && response?.controller) {
-                controllerSelect.value = response.controller;
+    async function refreshPreview() {
+        return withPanelLoading(async () => {
+            assignedLocationId = null;
+            disableForm(form, "Checking stock location...");
+            setControlDisabled(locateButton, true);
+            retry.hidden = true;
+            try {
+                if (!previewUrl) throw new Error("Stock item preview URL is not configured.");
+                const response = await fetchJson(previewUrl);
+                if (typeof response.can_locate !== "boolean" || !response.item) throw new Error("Invalid stock item preview. Refresh the page.");
+                preview.innerHTML = renderPreview(response);
+                assignedLocationId = Number.isSafeInteger(response.location?.id) ? response.location.id : null;
+                const input = form.querySelector("input[name='led']");
+                input.value = response.location ? displayLedList(response.leds || []) : "";
+                if (assignedLocationId && response.mapping_editable !== false && controllers.some((item) => item.reachable !== false)) {
+                    enableForm(form);
+                    const select = form.querySelector("select[name='controller']");
+                    const label = response.controller || context.default_controller || "";
+                    select.value = [...select.options].some((option) => option.value === label) ? label : "";
+                } else disableForm(form, assignedLocationId ? "Assign LEDs to leaf locations with a configured controller." : "This stock item has no assigned stock location.");
+                setControlDisabled(locateButton, !response.can_locate);
+                locateButton.title = response.can_locate ? "" : response.reason || "This stock item cannot be located yet.";
+            } catch (error) {
+                preview.textContent = `Preview request failed: ${error.message}`;
+                disableForm(form, "Retry the preview before editing this stock location.");
+                retry.hidden = false;
+                throw error;
             }
-        } else {
-            input.value = "";
-            disableForm(form, "This stock item has no assigned stock location.");
-        }
-
-        if (!response?.can_locate) {
-            locateButton.disabled = true;
-            locateButton.style.opacity = "0.65";
-            locateButton.title = response?.reason || "This stock item cannot be located yet.";
-        } else {
-            locateButton.disabled = false;
-            locateButton.style.opacity = "1";
-            locateButton.title = "";
-        }
-
-        return response;
-    } catch (error) {
-        preview.textContent = `Preview request failed: ${error}`;
-        disableForm(form, "Preview request failed.");
-        return null;
+        });
     }
+    retry.addEventListener("click", () => refreshPreview().catch(() => {}));
+    locateButton.addEventListener("click", () => runJsonRequest(locateUrl, locateButton, result, "Locating...", summarizePayload, {onSuccess: refreshPreview}));
+    const testButton = target.querySelector("[data-wled-test]");
+    testButton.addEventListener("click", () => {
+        const leds = getLedValues(form, maxLed);
+        if (!leds.length) { result.textContent = ledInputMessage(form, maxLed); return; }
+        return runJsonRequest(testLedUrl(context.test_controller_url_base || context.test_url_base, form, leds), testButton, result, "Testing LED...", summarizePayload);
+    });
+    const clearButton = target.querySelector("[data-wled-clear]");
+    clearButton.addEventListener("click", () => {
+        if (!assignedLocationId || !window.confirm("Clear the external indicator mapping for this stock item's StockLocation?")) return;
+        return runJsonRequest(clearMappingUrl(assignedLocationId), clearButton, result, "Clearing mapping...", summarizePayload, {onSuccess: refreshPreview});
+    });
+    form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        if (!assignedLocationId) { result.textContent = "This stock item has no checked stock location. Retry the preview."; return; }
+        const leds = getLedValues(form, maxLed);
+        if (!leds.length) { result.textContent = ledInputMessage(form, maxLed); return; }
+        return runJsonRequest(registerLedUrl({
+            registerLocationUrlBase: context.register_location_url_base,
+            registerLocationUrlSuffix: context.register_location_url_suffix,
+            registerLocationControllerUrlBase: context.register_location_controller_url_base,
+        }, assignedLocationId, form, leds), form.querySelector("button[type='submit']"), result, "Saving mapping...", summarizePayload, {onSuccess: refreshPreview});
+    });
+    refreshPreview().catch(() => {});
 }
 
 function renderPreview(payload) {

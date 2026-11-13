@@ -9,6 +9,7 @@ from part.models import Part
 from stock.models import StockItem, StockLocation
 
 from .constants import METADATA_INDICATOR_KEY
+from .execution import apply_controller_leds
 from .mapping import (
     delete_metadata_keys,
     indicator_payload,
@@ -17,7 +18,7 @@ from .mapping import (
     parse_indicator_metadata,
     set_metadata_values,
 )
-from .wled import WledClient
+from .planning import IndicatorCollection
 
 
 logger = logging.getLogger("inventree.plugin.wled_locator_plus")
@@ -26,13 +27,23 @@ logger = logging.getLogger("inventree.plugin.wled_locator_plus")
 class LocatorService:
     """Resolve InvenTree objects to WLED LED indexes."""
 
-    def __init__(self, plugin):
+    def __init__(self, plugin, *, wled=None):
         self.plugin = plugin
-        self.wled = WledClient(plugin)
+        self.wled = plugin.wled() if wled is None else wled
+        self._location_plans = {}
+
+    def invalidate_plans(self) -> None:
+        """Discard plans when mappings or controller configuration change."""
+        self._location_plans.clear()
 
     def get_location_info(self, location: StockLocation) -> dict:
         """Return simple JSON-safe location information."""
         return location_info(location)
+
+    def stock_item_in_stock(self, item: StockItem) -> bool:
+        """Use the native-filter annotation when the finder already loaded it."""
+        available = getattr(item, "_wled_finder_in_stock", None)
+        return item.in_stock if available is None else available
 
     def get_stock_item_info(self, item: StockItem) -> dict:
         """Return simple JSON-safe stock item information."""
@@ -42,7 +53,7 @@ class LocatorService:
             "id": item.pk,
             "part": str(item.part),
             "quantity": self.format_quantity(item.quantity),
-            "in_stock": item.in_stock,
+            "in_stock": self.stock_item_in_stock(item),
             "location": self.get_location_info(location) if location else None,
         }
 
@@ -83,6 +94,28 @@ class LocatorService:
             "build_line": allocation.build_line_id,
         }
 
+    def _location_group(self, groups: dict, location: StockLocation, plan: dict, *, build=False) -> dict:
+        """Create one response group per location, including its targets once."""
+        if location.pk not in groups:
+            group = {
+                "location": self.get_location_info(location),
+                "controller": plan["controller"],
+                "led": plan["led"],
+                "leds": list(plan["leds"]),
+                "indicators": list(plan["indicators"]),
+                "controller_leds": {
+                    label: list(leds) for label, leds in plan["controller_leds"].items()
+                },
+                "lit": plan["lit"],
+                "items": [],
+                "item_count": 0,
+            }
+            if build:
+                group.update(allocations=[], allocation_count=0)
+            groups[location.pk] = group
+
+        return groups[location.pk]
+
     def set_location_led(self, location: StockLocation, led: int) -> int:
         """Store the WLED LED index on a StockLocation."""
         indicator = self.set_location_indicator(location, led, controller_label=None)
@@ -99,7 +132,7 @@ class LocatorService:
         controller_label: str | None = None,
     ) -> dict:
         """Store a WLED controller and one or more LED indexes on a StockLocation."""
-        if location.has_children:
+        if not location.is_leaf_node():
             raise ValueError("Parent StockLocations cannot be assigned a direct LED")
 
         controller = self.wled.get_controller(controller_label)
@@ -129,7 +162,7 @@ class LocatorService:
 
     def clear_location_indicator(self, location: StockLocation) -> dict:
         """Remove WLED mapping metadata from a StockLocation."""
-        if location.has_children:
+        if not location.is_leaf_node():
             raise ValueError("Parent StockLocations do not have direct LED assignments")
 
         removed = []
@@ -149,10 +182,12 @@ class LocatorService:
     def set_metadata_values(self, location: StockLocation, values: dict) -> None:
         """Set StockLocation metadata values without deleting unrelated metadata."""
         set_metadata_values(location, values)
+        self.invalidate_plans()
 
     def delete_metadata_keys(self, location: StockLocation, keys: list[str]) -> None:
         """Delete StockLocation metadata keys without touching unrelated metadata."""
         delete_metadata_keys(location, keys)
+        self.invalidate_plans()
 
     def get_location_led(self, location: StockLocation) -> int:
         """Read and validate the WLED LED index from StockLocation metadata."""
@@ -162,63 +197,34 @@ class LocatorService:
         """Read and validate the WLED controller/LED mapping from metadata."""
         return parse_indicator_metadata(location, self.wled)
 
-    def add_indicator(self, controller_leds: dict, indicators: list[dict], indicator: dict) -> None:
-        """Add an indicator to grouped locate structures once."""
-        controller = indicator["controller"]
-        led = indicator["led"]
-        controller_leds.setdefault(controller, [])
-
-        if led not in controller_leds[controller]:
-            controller_leds[controller].append(led)
-
-        if not any(item["controller"] == controller and item["led"] == led for item in indicators):
-            indicators.append({"controller": controller, "led": led})
-
-    def add_indicators(self, controller_leds: dict, indicators: list[dict], new_indicators: list[dict]) -> None:
-        """Add multiple indicators to grouped locate structures."""
-        for indicator in new_indicators:
-            self.add_indicator(controller_leds, indicators, indicator)
-
-    def compatibility_leds(self, indicators: list[dict]) -> list[int]:
-        """Return plain LED indexes for older response fields."""
-        leds = []
-
-        for indicator in indicators:
-            led = indicator["led"]
-            if led not in leds:
-                leds.append(led)
-
-        return leds
-
     def apply_controller_leds(self, controller_leds: dict) -> dict:
         """Clear all WLEDs, then light LEDs grouped by WLED controller."""
-        clear_result = self.wled.clear_all_controllers()
-        results = {"clear": clear_result, "set": {}}
-
-        for controller, led_indices in controller_leds.items():
-            results["set"][controller] = (
-                self.wled.set_leds(led_indices, controller)
-                if led_indices
-                else {"success": True, "message": "No mapped LEDs to light"}
-            )
-
-        if len(results["set"]) == 1:
-            set_result = next(iter(results["set"].values()))
-            return {**set_result, "clear": clear_result}
-
-        return {"controllers": results}
+        return apply_controller_leds(self.wled, controller_leds)
 
     def get_location_led_plan(self, location: StockLocation) -> dict:
+        """Resolve each location at most once within this operation."""
+        if location.pk not in self._location_plans:
+            try:
+                self._location_plans[location.pk] = self._build_location_led_plan(location)
+            except ValueError as exc:
+                self._location_plans[location.pk] = ValueError(str(exc))
+
+        plan = self._location_plans[location.pk]
+        if isinstance(plan, ValueError):
+            raise ValueError(str(plan))
+        return plan
+
+    def _build_location_led_plan(self, location: StockLocation) -> dict:
         """Return LEDs used to locate a StockLocation.
 
         Leaf locations use their own metadata. Parent locations use mapped
         descendants, because the parent is only a container.
         """
-        if not location.has_children:
+        if location.is_leaf_node():
             indicator = self.get_location_indicator(location)
-            controller_leds = {}
-            indicators = []
-            self.add_indicators(controller_leds, indicators, indicator["indicators"])
+            targets = IndicatorCollection()
+            controller_leds, indicators = targets.controller_leds, targets.indicators
+            targets.extend(indicator["indicators"])
             return {
                 "location": self.get_location_info(location),
                 "mode": "leaf",
@@ -240,8 +246,8 @@ class LocatorService:
 
         lit = []
         skipped = []
-        indicators = []
-        controller_leds = {}
+        targets = IndicatorCollection()
+        controller_leds, indicators = targets.controller_leds, targets.indicators
 
         descendants = location.get_descendants(include_self=False).order_by(
             "pathstring",
@@ -249,7 +255,7 @@ class LocatorService:
         )
 
         for child in descendants:
-            if child.has_children:
+            if not child.is_leaf_node():
                 continue
 
             try:
@@ -261,7 +267,7 @@ class LocatorService:
                 })
                 continue
 
-            self.add_indicators(controller_leds, indicators, indicator["indicators"])
+            targets.extend(indicator["indicators"])
 
             lit.append({
                 "location": self.get_location_info(child),
@@ -280,7 +286,7 @@ class LocatorService:
             "mode": "parent",
             "controller": None,
             "led": None,
-            "leds": self.compatibility_leds(indicators),
+            "leds": targets.leds,
             "indicators": indicators,
             "controller_leds": controller_leds,
             "lit": lit,
@@ -328,26 +334,26 @@ class LocatorService:
             self.wled.clear_all_controllers()
             raise ValueError(preview["reason"])
 
-        result = self.locate_location(item.location)
+        wled_result = self.apply_controller_leds(preview["controller_leds"])
 
         return {
             "item": preview["item"],
-            "location": result["location"],
-            "controller": result["controller"],
-            "led": result["led"],
-            "leds": result["leds"],
-            "indicators": result["indicators"],
-            "controller_leds": result["controller_leds"],
-            "lit": result["lit"],
-            "skipped": result["skipped"],
-            "wled": result["wled"],
+            "location": preview["location"],
+            "controller": preview["controller"],
+            "led": preview["led"],
+            "leds": preview["leds"],
+            "indicators": preview["indicators"],
+            "controller_leds": preview["controller_leds"],
+            "lit": preview["lit"],
+            "skipped": preview["skipped"],
+            "wled": wled_result,
         }
 
     def preview_stock_item_object(self, item: StockItem) -> dict:
         """Return the StockLocation and LED used to locate a StockItem."""
         item_info = self.get_stock_item_info(item)
 
-        if not item.in_stock:
+        if not self.stock_item_in_stock(item):
             return self.stock_item_preview_failure(
                 item_info,
                 item_info["location"],
@@ -435,10 +441,14 @@ class LocatorService:
             part=part,
             location__isnull=False,
         ).order_by("pk")
+        return self.preview_part_stock(part, stock_items)
+
+    def preview_part_stock(self, part: Part, stock_items) -> dict:
+        """Build the existing part preview from already-loaded located stock."""
         lit = []
         skipped = []
-        indicators = []
-        controller_leds = {}
+        targets = IndicatorCollection()
+        controller_leds, indicators = targets.controller_leds, targets.indicators
         location_groups = {}
         stock_item_count = 0
 
@@ -446,7 +456,7 @@ class LocatorService:
             stock_item_count += 1
             item_info = self.get_stock_item_info(item)
 
-            if not item.in_stock:
+            if not self.stock_item_in_stock(item):
                 skipped.append({
                     "item": item_info,
                     "reason": "StockItem is not currently in stock",
@@ -459,41 +469,16 @@ class LocatorService:
                 skipped.append({"item": item_info, "reason": str(exc)})
                 continue
 
-            for indicator in plan["indicators"]:
-                self.add_indicator(controller_leds, indicators, indicator)
+            targets.extend(plan["indicators"])
 
-            location_id = item.location.pk
-            location_info = self.get_location_info(item.location)
-            location_group = location_groups.setdefault(
-                location_id,
-                {
-                    "location": location_info,
-                    "controller": plan["controller"],
-                    "led": plan["led"],
-                    "leds": [],
-                    "indicators": [],
-                    "controller_leds": {},
-                    "lit": plan["lit"],
-                    "items": [],
-                    "item_count": 0,
-                },
-            )
-
-            for indicator in plan["indicators"]:
-                self.add_indicator(
-                    location_group["controller_leds"],
-                    location_group["indicators"],
-                    indicator,
-                )
-
-            location_group["leds"] = self.compatibility_leds(location_group["indicators"])
+            location_group = self._location_group(location_groups, item.location, plan)
 
             location_group["items"].append(item_info)
             location_group["item_count"] += 1
 
             lit.append({
                 "item": item_info,
-                "location": location_info,
+                "location": location_group["location"],
                 "controller": plan["controller"],
                 "led": plan["led"],
                 "leds": plan["leds"],
@@ -505,7 +490,7 @@ class LocatorService:
             "part": self.get_part_info(part),
             "lit": lit,
             "locations": list(location_groups.values()),
-            "leds": self.compatibility_leds(indicators),
+            "leds": targets.leds,
             "indicators": indicators,
             "controller_leds": controller_leds,
             "skipped": skipped,
@@ -540,8 +525,8 @@ class LocatorService:
 
         lit = []
         skipped = []
-        indicators = []
-        controller_leds = {}
+        targets = IndicatorCollection()
+        controller_leds, indicators = targets.controller_leds, targets.indicators
         location_groups = {}
         allocation_total = 0
 
@@ -575,36 +560,9 @@ class LocatorService:
                 })
                 continue
 
-            for indicator in plan["indicators"]:
-                self.add_indicator(controller_leds, indicators, indicator)
+            targets.extend(plan["indicators"])
 
-            location_id = item.location.pk
-            location_info = self.get_location_info(item.location)
-            location_group = location_groups.setdefault(
-                location_id,
-                {
-                    "location": location_info,
-                    "controller": plan["controller"],
-                    "led": plan["led"],
-                    "leds": [],
-                    "indicators": [],
-                    "controller_leds": {},
-                    "lit": plan["lit"],
-                    "items": [],
-                    "allocations": [],
-                    "item_count": 0,
-                    "allocation_count": 0,
-                },
-            )
-
-            for indicator in plan["indicators"]:
-                self.add_indicator(
-                    location_group["controller_leds"],
-                    location_group["indicators"],
-                    indicator,
-                )
-
-            location_group["leds"] = self.compatibility_leds(location_group["indicators"])
+            location_group = self._location_group(location_groups, item.location, plan, build=True)
 
             location_group["items"].append(item_info)
             location_group["allocations"].append(allocation_info)
@@ -614,7 +572,7 @@ class LocatorService:
             lit.append({
                 "allocation": allocation_info,
                 "item": item_info,
-                "location": location_info,
+                "location": location_group["location"],
                 "controller": plan["controller"],
                 "led": plan["led"],
                 "leds": plan["leds"],
@@ -626,7 +584,7 @@ class LocatorService:
             "build": self.get_build_info(build),
             "lit": lit,
             "locations": list(location_groups.values()),
-            "leds": self.compatibility_leds(indicators),
+            "leds": targets.leds,
             "indicators": indicators,
             "controller_leds": controller_leds,
             "skipped": skipped,
@@ -672,8 +630,8 @@ class LocatorService:
         }
         lit = []
         skipped = []
-        indicators = []
-        controller_leds = {}
+        targets = IndicatorCollection()
+        controller_leds, indicators = targets.controller_leds, targets.indicators
 
         for location_id in location_ids:
             location = locations.get(location_id)
@@ -688,8 +646,7 @@ class LocatorService:
                 skipped.append({"location": self.get_location_info(location), "reason": str(exc)})
                 continue
 
-            for indicator in plan["indicators"]:
-                self.add_indicator(controller_leds, indicators, indicator)
+            targets.extend(plan["indicators"])
 
             lit.append({
                 "location": self.get_location_info(location),
@@ -705,7 +662,7 @@ class LocatorService:
         return {
             "requested_ids": location_ids,
             "lit": lit,
-            "leds": self.compatibility_leds(indicators),
+            "leds": targets.leds,
             "indicators": indicators,
             "controller_leds": controller_leds,
             "skipped": skipped,
@@ -732,8 +689,8 @@ class LocatorService:
                 "leds": indicator["leds"],
                 "indicators": indicator["indicators"],
                 "indicator": indicator,
-                "has_children": location.has_children,
-                "child_count": location.get_descendant_count() if location.has_children else 0,
+                "has_children": not location.is_leaf_node(),
+                "child_count": location.get_descendant_count(),
             })
 
         return mapped_locations
@@ -811,7 +768,7 @@ class LocatorService:
             raise ValueError("Source controller is required")
 
         for location in StockLocation.objects.order_by("pathstring", "name"):
-            if location.has_children:
+            if not location.is_leaf_node():
                 continue
 
             metadata = location.metadata or {}
@@ -917,8 +874,8 @@ class LocatorService:
                 "leds": indicator["leds"] if indicator else [],
                 "indicators": indicator["indicators"] if indicator else [],
                 "indicator": indicator,
-                "has_children": location.has_children,
-                "child_count": location.get_descendant_count() if location.has_children else 0,
+                "has_children": not location.is_leaf_node(),
+                "child_count": location.get_descendant_count(),
             })
 
         return choices

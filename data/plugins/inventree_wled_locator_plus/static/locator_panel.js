@@ -17,6 +17,9 @@ import {
     registerLedUrl,
     resultStyle,
     runJsonRequest,
+    registerPanel,
+    setControlDisabled,
+    withPanelLoading,
     splitLocationPath,
     testLedUrl,
 } from "./panel_common.js";
@@ -64,7 +67,7 @@ function renderObjectPanel(target, data, text) {
     const registerLocationControllerUrlBase = context.register_location_controller_url_base || "/plugin/wled-locator-plus/register/location/";
     const testUrlBase = context.test_url_base || "/plugin/wled-locator-plus/test/";
     const testControllerUrlBase = context.test_controller_url_base || "/plugin/wled-locator-plus/test/";
-    const maxLed = Number.isInteger(context.max_led) ? context.max_led : 58;
+    const maxLed = Number.isInteger(context.max_led) ? context.max_led : -1;
     const controllers = Array.isArray(context.controllers) ? context.controllers : [];
 
     if (!locateUrl) {
@@ -80,10 +83,11 @@ function renderObjectPanel(target, data, text) {
             <div data-wled-preview style="background: #f7f8f9; border: 1px solid #d8dde2; border-radius: 6px; padding: 0.75rem;">
                 ${escapeHtml(text.loading)}
             </div>
+            <button type="button" data-wled-retry-preview hidden>Retry preview</button>
             <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
                 <button
                     type="button"
-                    data-wled-locate
+                    data-wled-locate disabled
                     style="${buttonStyle("#2364aa")}"
                 >
                     ${escapeHtml(text.locateButton)}
@@ -94,6 +98,7 @@ function renderObjectPanel(target, data, text) {
         </div>
     `;
 
+    registerPanel(target, context);
     const button = target.querySelector("[data-wled-locate]");
     const preview = target.querySelector("[data-wled-preview]");
     const result = target.querySelector("[data-wled-result]");
@@ -110,25 +115,28 @@ function renderObjectPanel(target, data, text) {
 
     bindDashboardButton(target, pluginPageUrl);
 
-    if (previewUrl) {
-        loadPreview(previewUrl, preview, result, previewOptions, text);
-    } else {
-        preview.textContent = `${capitalize(text.objectName)} preview URL is not configured.`;
+    const retry = target.querySelector("[data-wled-retry-preview]");
+    async function refreshPreview() {
+        return withPanelLoading(async () => {
+            setControlDisabled(button, true);
+            retry.hidden = true;
+            try {
+                if (!previewUrl) throw new Error(`${capitalize(text.objectName)} preview URL is not configured.`);
+                const payload = await fetchJson(previewUrl);
+                if (!Array.isArray(payload.indicators) || !payload.summary) throw new Error("Invalid preview. Refresh the page.");
+                preview.innerHTML = renderPreview(payload, previewOptions, text);
+                bindAssignmentForms(preview, result, {...previewOptions, onSuccess: refreshPreview});
+                setControlDisabled(button, payload.indicators.length === 0);
+            } catch (error) {
+                preview.textContent = `Preview request failed: ${error.message}`;
+                retry.hidden = false;
+                throw error;
+            }
+        });
     }
-
-    button.addEventListener("click", async () => {
-        await runJsonRequest(locateUrl, button, result, "Locating...", (payload) => summarizePayload(payload, text));
-    });
-}
-
-async function loadPreview(url, container, result, options, text) {
-    try {
-        const payload = await fetchJson(url);
-        container.innerHTML = renderPreview(payload, options, text);
-        bindAssignmentForms(container, result, options);
-    } catch (error) {
-        container.textContent = `Preview request failed: ${error}`;
-    }
+    retry.addEventListener("click", () => refreshPreview().catch(() => {}));
+    button.addEventListener("click", () => runJsonRequest(locateUrl, button, result, "Locating...", (payload) => summarizePayload(payload, text), {onSuccess: refreshPreview}));
+    refreshPreview().catch(() => {});
 }
 
 function renderPreview(payload, options, text) {
@@ -137,18 +145,31 @@ function renderPreview(payload, options, text) {
         return `<strong>Preview error:</strong> ${escapeHtml(error)}`;
     }
 
-    const lit = Array.isArray(payload.locations) ? payload.locations : (Array.isArray(payload.lit) ? payload.lit : []);
+    const lit = Array.isArray(payload.locations) ? [...payload.locations] : (Array.isArray(payload.lit) ? [...payload.lit] : []);
     const skipped = Array.isArray(payload.skipped) ? payload.skipped : [];
 
     if (!lit.length && !skipped.length) {
         return escapeHtml(text.empty);
     }
 
+    // Keep unmapped stock locations editable after clearing a mapping.
+    const locations = new Map(lit.map((entry) => [entry.location?.id, entry]));
+    for (const entry of skipped) {
+        const item = entry.item || entry.allocation?.stock_item;
+        if (!item?.location || (text.objectName === "part" && item.in_stock === false)) continue;
+        if (!locations.has(item.location.id)) {
+            const row = {location: item.location, leds: [], indicators: [], item_count: 0, reason: entry.reason};
+            locations.set(item.location.id, row);
+            lit.push(row);
+        }
+        const row = locations.get(item.location.id);
+        if (row.reason) row.item_count += 1;
+    }
     const rows = lit.map((entry) => `
         <tr>
             <td style="${cellStyle()}">${escapeHtml(entry.location?.path || entry.location?.name || "Location")}</td>
             <td style="${cellStyle()}">${escapeHtml(quantityText(entry))}</td>
-            <td data-led-cell style="${cellStyle()}">${escapeHtml(formatLeds(entry))}</td>
+            <td data-led-cell style="${cellStyle()}">${escapeHtml(formatLeds(entry) || entry.reason || "No mapping")}</td>
             <td style="${cellStyle()}">${locationAssignment(entry, options)}</td>
         </tr>
     `).join("");
@@ -225,22 +246,15 @@ function bindAssignmentForms(container, result, options) {
                 return;
             }
 
-            const payload = await runJsonRequest(
+            await runJsonRequest(
                 clearMappingUrl(locationId),
                 clearButton,
                 result,
                 "Clearing mapping...",
-                summarizePayload
+                summarizePayload,
+                {onSuccess: options.onSuccess}
             );
 
-            if (payload?.success) {
-                const input = form.querySelector("input[name='led']");
-                const ledCell = assignment.closest("tr")?.querySelector("[data-led-cell]");
-                input.value = "";
-                if (ledCell) {
-                    ledCell.textContent = "No LED";
-                }
-            }
         });
 
         form.addEventListener("submit", async (event) => {
@@ -252,20 +266,15 @@ function bindAssignmentForms(container, result, options) {
                 return;
             }
 
-            const payload = await runJsonRequest(
+            await runJsonRequest(
                 registerLedUrl(options, locationId, form, leds),
                 form.querySelector("button[type='submit']"),
                 result,
                 "Saving mapping...",
-                summarizePayload
+                summarizePayload,
+                {onSuccess: options.onSuccess}
             );
 
-            if (payload?.success) {
-                const ledCell = assignment.closest("tr")?.querySelector("[data-led-cell]");
-                if (ledCell) {
-                    ledCell.textContent = compactIndicatorText(payload);
-                }
-            }
         });
     });
 }

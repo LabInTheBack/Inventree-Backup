@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Part finder · InvenTree</title>
+  <style>$styles</style>
+</head>
+<body>
+  <main class="finder">
+    <header class="page-header">
+      <div>
+        <p class="eyebrow">InvenTree · External Indicator</p>
+        <h1>Part finder</h1>
+        <p class="intro">Search for parts, choose the matches, and light their locations together.</p>
+      </div>
+      <nav aria-label="Related pages">
+        <a href="/web/">InvenTree</a>
+        <a href="$dashboard_url">Indicator dashboard</a>
+      </nav>
+    </header>
+
+    <div class="finder-layout">
+      <div class="search-column">
+        <section class="card" aria-labelledby="search-heading">
+          <h2 id="search-heading">What are you looking for?</h2>
+          <form data-search-form>
+            <input type="hidden" name="csrfmiddlewaretoken" value="$csrf_token">
+            <label for="part-queries">Parts to find</label>
+            <textarea id="part-queries" name="queries" rows="4" placeholder="NE555&#10;10k resistor&#10;M3 nut" aria-describedby="query-help" required></textarea>
+            <div class="form-footer">
+              <p id="query-help" class="muted">One part per line, or separate with semicolons. Up to $max_queries searches. Values such as 10kΩ and 100nF are recognized.</p>
+              <button type="submit" data-search-button>Search parts</button>
+            </div>
+          </form>
+          <p class="status" role="status" aria-live="polite" data-search-status></p>
+          <p class="muted recovery-status" role="status" aria-live="polite" data-recovery-status>Search text and selected parts are remembered in this browser.</p>
+        </section>
+
+        <section aria-labelledby="results-heading" aria-busy="false" data-results-region>
+          <div class="section-header">
+            <h2 id="results-heading">Matches</h2>
+            <span class="muted" data-results-count></span>
+            <a class="selection-shortcut" href="#selection" data-selection-shortcut hidden>View selected</a>
+          </div>
+          <div data-results>
+            <p class="empty-state">Enter the parts you need above. You can add matches from several searches to the same selection.</p>
+          </div>
+        </section>
+      </div>
+
+      <aside id="selection" class="selection-column card" aria-labelledby="selection-heading">
+        <div class="section-header">
+          <h2 id="selection-heading">Selected parts <span class="count" data-selected-count>0</span></h2>
+          <button type="button" class="text-button" data-clear-selection disabled>Clear list</button>
+        </div>
+        <p class="status" role="status" aria-live="polite" data-preview-status>Choose parts from the matches.</p>
+        <button type="button" class="text-button" data-retry-preview hidden>Retry location check</button>
+        <div data-selected-parts></div>
+        <div class="selection-actions">
+          <button type="button" data-locate disabled>Locate selected</button>
+          <button type="button" class="secondary" data-off>All off</button>
+        </div>
+        <p class="status action-status" role="status" aria-live="polite" data-action-status></p>
+      </aside>
+    </div>
+    <noscript><p class="card">Enable JavaScript to search and locate parts. Your existing <a href="$dashboard_url">indicator dashboard</a> is still available.</p></noscript>
+  </main>
+  $config
+  <script>$script</script>
+</body>
+</html>

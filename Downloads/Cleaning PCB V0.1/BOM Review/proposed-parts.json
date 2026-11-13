@@ -1,0 +1,1771 @@
+[
+  {
+    "MPN": "CC0805KRX5R6BB106",
+    "SPN": "311-3424-1-ND",
+    "manufacturer": "Yageo",
+    "digikey_manufacturer": "YAGEO",
+    "description": "10 µF, 10 V, ±10%, X5R, 0805",
+    "category": "Electronics/Passives/Capacitors/Ceramic",
+    "references": "C11, C8, C9",
+    "BOM_quantity": 3,
+    "quantity_basis": "Original CSV; proposed mapping where manufacturer number changed",
+    "recorded_stock": 0,
+    "shortfall": 3,
+    "existing_part_id": null,
+    "action": "Create",
+    "packaging": "Cut Tape (CT)",
+    "source": "https://www.digikey.com/en/products/detail/yageo/CC0805KRX5R6BB106/7164445",
+    "status": "Active",
+    "attributes": [
+      [
+        "Temperature Coefficient",
+        "X5R"
+      ],
+      [
+        "Operating Temperature",
+        "-55°C ~ 85°C"
+      ],
+      [
+        "Series",
+        "CC"
+      ],
+      [
+        "Applications",
+        "General Purpose"
+      ],
+      [
+        "Mounting Type",
+        "Surface Mount, MLCC"
+      ],
+      [
+        "Package / Case",
+        "0805 (2012 Metric)"
+      ],
+      [
+        "Capacitance",
+        "10 µF"
+      ],
+      [
+        "Size / Dimension",
+        "0.079\" L x 0.049\" W (2.00mm x 1.25mm)"
+      ],
+      [
+        "Tolerance",
+        "±10%"
+      ],
+      [
+        "Thickness (Max)",
+        "0.057\" (1.45mm)"
+      ],
+      [
+        "Voltage - Rated",
+        "10V"
+      ]
+    ],
+    "notes": [
+      "Proposed replacement for CL21A106KPFNNNE; same nominal value/package, not a confirmed design substitution."
+    ],
+    "image_url": "https://mm.digikey.com/Volume0/opasdata/d220001/derivates/1/300/351/273/0805%288%5E5mm%20thickness%29_sml.jpg",
+    "image_file": "/home/den/server-data/inventree/Downloads/Cleaning PCB V0.1/BOM Review/images/01.jpg",
+    "datasheet_status": "Linked from exact DigiKey.com product page; file not retrieved during analysis",
+    "datasheet_label": "L987: Datasheet  |  Datasheet†yageogroup.com"
+  },
+  {
+    "MPN": "CL10B103KB8NNNC",
+    "SPN": "1276-1009-1-ND",
+    "manufacturer": "Samsung Electro-Mechanics",
+    "digikey_manufacturer": "Samsung Electro-Mechanics",
+    "description": "10 nF, 50 V, ±10%, X7R, 0603",
+    "category": "Electronics/Passives/Capacitors/Ceramic",
+    "references": "C12, C2",
+    "BOM_quantity": 2,
+    "quantity_basis": "Original CSV; proposed mapping where manufacturer number changed",
+    "recorded_stock": 0,
+    "shortfall": 2,
+    "existing_part_id": null,
+    "action": "Create",
+    "packaging": "Cut Tape (CT)",
+    "source": "https://www.digikey.com/en/products/detail/samsung-electro-mechanics/CL10B103KB8NNNC/3889095",
+    "status": "Active",
+    "attributes": [
+      [
+        "Temperature Coefficient",
+        "X7R"
+      ],
+      [
+        "Operating Temperature",
+        "-55°C ~ 125°C"
+      ],
+      [
+        "Series",
+        "CL"
+      ],
+      [
+        "Applications",
+        "General Purpose"
+      ],
+      [
+        "Mounting Type",
+        "Surface Mount, MLCC"
+      ],
+      [
+        "Package / Case",
+        "0603 (1608 Metric)"
+      ],
+      [
+        "Capacitance",
+        "10000 pF"
+      ],
+      [
+        "Size / Dimension",
+        "0.063\" L x 0.031\" W (1.60mm x 0.80mm)"
+      ],
+      [
+        "Tolerance",
+        "±10%"
+      ],
+      [
+        "Thickness (Max)",
+        "0.035\" (0.90mm)"
+      ],
+      [
+        "Voltage - Rated",
+        "50V"
+      ]
+    ],
+    "notes": [],
+    "image_url": "https://mm.digikey.com/Volume0/opasdata/d220001/derivates/1/300/367/423/Ceramic-Capacitor-CL-Series_sml.jpg",
+    "image_file": "/home/den/server-data/inventree/Downloads/Cleaning PCB V0.1/BOM Review/images/02.jpg",
+    "datasheet_status": "Linked from exact DigiKey.com product page; file not retrieved during analysis",
+    "datasheet_label": "L983: Datasheet  |  Datasheet†mm.digikey.com"
+  },
+  {
+    "MPN": "C0603C104K5RACTU",
+    "SPN": "399-C0603C104K5RACTUCT-ND",
+    "manufacturer": "KEMET",
+    "digikey_manufacturer": "KEMET",
+    "description": "100 nF, 50 V, ±10%, X7R, 0603",
+    "category": "Electronics/Passives/Capacitors/Ceramic",
+    "references": "C13, C14, C15, C3, C4",
+    "BOM_quantity": 5,
+    "quantity_basis": "Original CSV; proposed mapping where manufacturer number changed",
+    "recorded_stock": 0,
+    "shortfall": 5,
+    "existing_part_id": null,
+    "action": "Create",
+    "packaging": "Cut Tape (CT)",
+    "source": "https://www.digikey.com/en/products/detail/kemet/C0603C104K5RACTU/1465623",
+    "status": "Active",
+    "attributes": [
+      [
+        "Temperature Coefficient",
+        "X7R"
+      ],
+      [
+        "Operating Temperature",
+        "-55°C ~ 125°C"
+      ],
+      [
+        "Series",
+        "SMD Comm X7R"
+      ],
+      [
+        "Applications",
+        "Bypass, Decoupling"
+      ],
+      [
+        "Mounting Type",
+        "Surface Mount, MLCC"
+      ],
+      [
+        "Package / Case",
+        "0603 (1608 Metric)"
+      ],
+      [
+        "Capacitance",
+        "0.1 µF"
+      ],
+      [
+        "Size / Dimension",
+        "0.063\" L x 0.031\" W (1.60mm x 0.80mm)"
+      ],
+      [
+        "Tolerance",
+        "±10%"
+      ],
+      [
+        "Thickness (Max)",
+        "0.034\" (0.87mm)"
+      ],
+      [
+        "Voltage - Rated",
+        "50V"
+      ]
+    ],
+    "notes": [
+      "Proposed replacement for CL10B104KB8NNNC; same nominal value/package, not a confirmed design substitution."
+    ],
+    "image_url": "https://mm.digikey.com/Volume0/opasdata/d220001/derivates/1/030/107/433/0603-%281608-Metric%29-Ceramic-Capacitor_sml.jpg",
+    "image_file": "/home/den/server-data/inventree/Downloads/Cleaning PCB V0.1/BOM Review/images/03.jpg",
+    "datasheet_status": "Linked from exact DigiKey.com product page; file not retrieved during analysis",
+    "datasheet_label": "L987: Datasheet  |  Datasheet†yageogroup.com"
+  },
+  {
+    "MPN": "LTST-C190KRKT",
+    "SPN": "160-1436-1-ND",
+    "manufacturer": "Lite-On Inc.",
+    "digikey_manufacturer": "Lite-On Inc.",
+    "description": "Red LED; 631 nm; Vf typ 2 V; 99 mcd; 0603",
+    "category": "Electronics/Diodes/LEDs/Visible LEDs",
+    "references": "D3",
+    "BOM_quantity": 1,
+    "quantity_basis": "Original CSV; proposed mapping where manufacturer number changed",
+    "recorded_stock": 0,
+    "shortfall": 1,
+    "existing_part_id": null,
+    "action": "Create",
+    "packaging": "Cut Tape (CT)",
+    "source": "https://www.digikey.com/en/products/detail/liteon/LTST-C190KRKT/386817",
+    "status": "Active",
+    "attributes": [
+      [
+        "Voltage - Forward (Vf) (Typ)",
+        "2V"
+      ],
+      [
+        "Current - Test",
+        "20mA"
+      ],
+      [
+        "Viewing Angle",
+        "130°"
+      ],
+      [
+        "Mounting Type",
+        "Surface Mount"
+      ],
+      [
+        "Color",
+        "Red"
+      ],
+      [
+        "Wavelength - Dominant",
+        "631nm"
+      ],
+      [
+        "Configuration",
+        "Standard"
+      ],
+      [
+        "Wavelength - Peak",
+        "639nm"
+      ],
+      [
+        "Lens Color",
+        "Colorless"
+      ],
+      [
+        "Package / Case",
+        "0603 (1608 Metric)"
+      ],
+      [
+        "Lens Transparency",
+        "Clear"
+      ],
+      [
+        "Size / Dimension",
+        "1.60mm L x 0.80mm W"
+      ],
+      [
+        "Millicandela Rating",
+        "99mcd"
+      ],
+      [
+        "Height (Max)",
+        "0.90mm"
+      ],
+      [
+        "Lens Style",
+        "Rectangle with Flat Top"
+      ],
+      [
+        "Lens Size",
+        "1.10mm x 0.80mm"
+      ]
+    ],
+    "notes": [
+      "20 mA is test current, not a maximum forward-current rating. Dominant and peak wavelengths are different fields."
+    ],
+    "image_url": "https://mm.digikey.com/Volume0/opasdata/d220001/derivates/1/003/239/838/~160~0603-%281608-Metric%29~_sml%28200x200%29.jpg",
+    "image_file": "/home/den/server-data/inventree/Downloads/Cleaning PCB V0.1/BOM Review/images/04.jpg",
+    "datasheet_status": "Linked from exact DigiKey.com product page; file not retrieved during analysis",
+    "datasheet_label": "L988: Datasheet  |  Datasheet†optoelectronics.liteon.com"
+  },
+  {
+    "MPN": "LTST-C190KGKT",
+    "SPN": "160-1435-1-ND",
+    "manufacturer": "Lite-On Inc.",
+    "digikey_manufacturer": "Lite-On Inc.",
+    "description": "Green LED; 572 nm; Vf typ 2.15 V; 44.5 mcd; 0603",
+    "category": "Electronics/Diodes/LEDs/Visible LEDs",
+    "references": "D4",
+    "BOM_quantity": 1,
+    "quantity_basis": "Original CSV; proposed mapping where manufacturer number changed",
+    "recorded_stock": 0,
+    "shortfall": 1,
+    "existing_part_id": null,
+    "action": "Create",
+    "packaging": "Cut Tape (CT)",
+    "source": "https://www.digikey.com/en/products/detail/liteon/LTST-C190KGKT/386815",
+    "status": "Active",
+    "attributes": [
+      [
+        "Voltage - Forward (Vf) (Typ)",
+        "2.15V"
+      ],
+      [
+        "Current - Test",
+        "20mA"
+      ],
+      [
+        "Viewing Angle",
+        "130°"
+      ],
+      [
+        "Mounting Type",
+        "Surface Mount"
+      ],
+      [
+        "Color",
+        "Green"
+      ],
+      [
+        "Wavelength - Dominant",
+        "572nm"
+      ],
+      [
+        "Configuration",
+        "Standard"
+      ],
+      [
+        "Wavelength - Peak",
+        "574nm"
+      ],
+      [
+        "Lens Color",
+        "Colorless"
+      ],
+      [
+        "Package / Case",
+        "0603 (1608 Metric)"
+      ],
+      [
+        "Lens Transparency",
+        "Clear"
+      ],
+      [
+        "Size / Dimension",
+        "1.60mm L x 0.80mm W"
+      ],
+      [
+        "Millicandela Rating",
+        "44.5mcd"
+      ],
+      [
+        "Height (Max)",
+        "0.90mm"
+      ],
+      [
+        "Lens Style",
+        "Rectangle with Flat Top"
+      ],
+      [
+        "Lens Size",
+        "1.10mm x 0.80mm"
+      ]
+    ],
+    "notes": [
+      "20 mA is test current, not a maximum forward-current rating. Dominant and peak wavelengths are different fields."
+    ],
+    "image_url": "https://mm.digikey.com/Volume0/opasdata/d220001/derivates/1/003/239/838/~160~0603-%281608-Metric%29~_sml%28200x200%29.jpg",
+    "image_file": "/home/den/server-data/inventree/Downloads/Cleaning PCB V0.1/BOM Review/images/05.jpg",
+    "datasheet_status": "Linked from exact DigiKey.com product page; file not retrieved during analysis",
+    "datasheet_label": "L986: Datasheet  |  Datasheet†optoelectronics.liteon.com"
+  },
+  {
+    "MPN": "RC0805FR-0710KL",
+    "SPN": "311-10.0KCRCT-ND",
+    "manufacturer": "Yageo",
+    "digikey_manufacturer": "YAGEO",
+    "description": "10 kΩ, ±1%, 0.125 W, 0805, thick film",
+    "category": "Electronics/Passives/Resistors/Fixed",
+    "references": "R1",
+    "BOM_quantity": 1,
+    "quantity_basis": "Original CSV; proposed mapping where manufacturer number changed",
+    "recorded_stock": 0,
+    "shortfall": 1,
+    "existing_part_id": null,
+    "action": "Create",
+    "packaging": "Cut Tape (CT)",
+    "source": "https://www.digikey.com/en/products/detail/yageo/RC0805FR-0710KL/730482",
+    "status": "Active",
+    "attributes": [
+      [
+        "Features",
+        "Moisture Resistant"
+      ],
+      [
+        "Temperature Coefficient",
+        "±100ppm/°C"
+      ],
+      [
+        "Series",
+        "RC_L"
+      ],
+      [
+        "Operating Temperature",
+        "-55°C ~ 155°C"
+      ],
+      [
+        "Package / Case",
+        "0805 (2012 Metric)"
+      ],
+      [
+        "Supplier Device Package",
+        "0805"
+      ],
+      [
+        "Resistance",
+        "10 kOhms"
+      ],
+      [
+        "Size / Dimension",
+        "0.079\" L x 0.049\" W (2.00mm x 1.25mm)"
+      ],
+      [
+        "Tolerance",
+        "±1%"
+      ],
+      [
+        "Height - Seated (Max)",
+        "0.024\" (0.60mm)"
+      ],
+      [
+        "Power (Watts)",
+        "0.125W, 1/8W"
+      ],
+      [
+        "Number of Terminations",
+        "2"
+      ],
+      [
+        "Composition",
+        "Thick Film"
+      ]
+    ],
+    "notes": [],
+    "image_url": "https://mm.digikey.com/Volume0/opasdata/d220001/derivates/1/100/962/237/13_0805-%282012-metric%29_sml.jpg",
+    "image_file": "/home/den/server-data/inventree/Downloads/Cleaning PCB V0.1/BOM Review/images/06.jpg",
+    "datasheet_status": "Linked from exact DigiKey.com product page; file not retrieved during analysis",
+    "datasheet_label": "L986: Datasheet  |  Datasheet†yageogroup.com"
+  },
+  {
+    "MPN": "RC0603JR-07470RL",
+    "SPN": "311-470GRCT-ND",
+    "manufacturer": "Yageo",
+    "digikey_manufacturer": "YAGEO",
+    "description": "470 Ω, ±5%, 0.1 W, 0603, thick film",
+    "category": "Electronics/Passives/Resistors/Fixed",
+    "references": "R10, R11",
+    "BOM_quantity": 2,
+    "quantity_basis": "Original CSV; proposed mapping where manufacturer number changed",
+    "recorded_stock": 0,
+    "shortfall": 2,
+    "existing_part_id": null,
+    "action": "Create",
+    "packaging": "Cut Tape (CT)",
+    "source": "https://www.digikey.com/en/products/detail/yageo/RC0603JR-07470RL/726791",
+    "status": "Active",
+    "attributes": [
+      [
+        "Features",
+        "Moisture Resistant"
+      ],
+      [
+        "Temperature Coefficient",
+        "±100ppm/°C"
+      ],
+      [
+        "Series",
+        "RC_L"
+      ],
+      [
+        "Operating Temperature",
+        "-55°C ~ 155°C"
+      ],
+      [
+        "Package / Case",
+        "0603 (1608 Metric)"
+      ],
+      [
+        "Supplier Device Package",
+        "0603"
+      ],
+      [
+        "Resistance",
+        "470 Ohms"
+      ],
+      [
+        "Size / Dimension",
+        "0.063\" L x 0.031\" W (1.60mm x 0.80mm)"
+      ],
+      [
+        "Tolerance",
+        "±5%"
+      ],
+      [
+        "Height - Seated (Max)",
+        "0.022\" (0.55mm)"
+      ],
+      [
+        "Power (Watts)",
+        "0.1W, 1/10W"
+      ],
+      [
+        "Number of Terminations",
+        "2"
+      ],
+      [
+        "Composition",
+        "Thick Film"
+      ]
+    ],
+    "notes": [],
+    "image_url": "https://mm.digikey.com/Volume0/opasdata/d220001/derivates/1/100/962/238/13_0603-%281608-metric%29_sml%28200x200%29.jpg",
+    "image_file": "/home/den/server-data/inventree/Downloads/Cleaning PCB V0.1/BOM Review/images/07.jpg",
+    "datasheet_status": "Linked from exact DigiKey.com product page; file not retrieved during analysis",
+    "datasheet_label": "L986: Datasheet  |  Datasheet†yageogroup.com"
+  },
+  {
+    "MPN": "RT0603BRD07100KL",
+    "SPN": "YAG1235CT-ND",
+    "manufacturer": "Yageo",
+    "digikey_manufacturer": "YAGEO",
+    "description": "100 kΩ, ±0.1%, 0.1 W, 0603, thin film",
+    "category": "Electronics/Passives/Resistors/Fixed",
+    "references": "R14, R15",
+    "BOM_quantity": 2,
+    "quantity_basis": "Original CSV; proposed mapping where manufacturer number changed",
+    "recorded_stock": 0,
+    "shortfall": 2,
+    "existing_part_id": null,
+    "action": "Create",
+    "packaging": "Cut Tape (CT)",
+    "source": "https://www.digikey.com/en/products/detail/yageo/RT0603BRD07100KL/1072187",
+    "status": "Active",
+    "attributes": [
+      [
+        "Composition",
+        "Thin Film"
+      ],
+      [
+        "Temperature Coefficient",
+        "±25ppm/°C"
+      ],
+      [
+        "Series",
+        "RT"
+      ],
+      [
+        "Operating Temperature",
+        "-55°C ~ 155°C"
+      ],
+      [
+        "Package / Case",
+        "0603 (1608 Metric)"
+      ],
+      [
+        "Supplier Device Package",
+        "0603"
+      ],
+      [
+        "Resistance",
+        "100 kOhms"
+      ],
+      [
+        "Size / Dimension",
+        "0.063\" L x 0.031\" W (1.60mm x 0.80mm)"
+      ],
+      [
+        "Tolerance",
+        "±0.1%"
+      ],
+      [
+        "Height - Seated (Max)",
+        "0.022\" (0.55mm)"
+      ],
+      [
+        "Power (Watts)",
+        "0.1W, 1/10W"
+      ],
+      [
+        "Number of Terminations",
+        "2"
+      ]
+    ],
+    "notes": [],
+    "image_url": "https://mm.digikey.com/Volume0/opasdata/d220001/derivates/1/100/949/389/RT-Series-Chip-Resistor_sml.jpg",
+    "image_file": "/home/den/server-data/inventree/Downloads/Cleaning PCB V0.1/BOM Review/images/08.jpg",
+    "datasheet_status": "Linked from exact DigiKey.com product page; file not retrieved during analysis",
+    "datasheet_label": "L986: Datasheet  |  Datasheet†yageogroup.com"
+  },
+  {
+    "MPN": "RC0603JR-070RL",
+    "SPN": "311-0.0GRCT-ND",
+    "manufacturer": "Yageo",
+    "digikey_manufacturer": "YAGEO",
+    "description": "0 Ω jumper, 0.1 W, 0603, thick film",
+    "category": "Electronics/Passives/Resistors/Fixed",
+    "references": "R2, R3, R4, R5",
+    "BOM_quantity": 4,
+    "quantity_basis": "Original CSV; proposed mapping where manufacturer number changed",
+    "recorded_stock": 0,
+    "shortfall": 4,
+    "existing_part_id": null,
+    "action": "Create",
+    "packaging": "Cut Tape (CT)",
+    "source": "https://www.digikey.com/en/products/detail/yageo/RC0603JR-070RL/726675",
+    "status": "Active",
+    "attributes": [
+      [
+        "Composition",
+        "Thick Film"
+      ],
+      [
+        "Features",
+        "Moisture Resistant"
+      ],
+      [
+        "Series",
+        "RC_L"
+      ],
+      [
+        "Operating Temperature",
+        "-55°C ~ 155°C"
+      ],
+      [
+        "Package / Case",
+        "0603 (1608 Metric)"
+      ],
+      [
+        "Supplier Device Package",
+        "0603"
+      ],
+      [
+        "Resistance",
+        "0 Ohms"
+      ],
+      [
+        "Size / Dimension",
+        "0.063\" L x 0.031\" W (1.60mm x 0.80mm)"
+      ],
+      [
+        "Tolerance",
+        "Jumper"
+      ],
+      [
+        "Height - Seated (Max)",
+        "0.022\" (0.55mm)"
+      ],
+      [
+        "Power (Watts)",
+        "0.1W, 1/10W"
+      ],
+      [
+        "Number of Terminations",
+        "2"
+      ]
+    ],
+    "notes": [
+      "Tolerance is Jumper, not ±5%; do not infer tolerance from the J in the MPN."
+    ],
+    "image_url": "https://mm.digikey.com/Volume0/opasdata/d220001/derivates/1/100/962/238/13_0603-%281608-metric%29_sml%28200x200%29.jpg",
+    "image_file": "/home/den/server-data/inventree/Downloads/Cleaning PCB V0.1/BOM Review/images/09.jpg",
+    "datasheet_status": "Linked from exact DigiKey.com product page; file not retrieved during analysis",
+    "datasheet_label": "L986: Datasheet  |  Datasheet†yageogroup.com"
+  },
+  {
+    "MPN": "RC0603FR-071KL",
+    "SPN": "311-1.00KHRCT-ND",
+    "manufacturer": "Yageo",
+    "digikey_manufacturer": "YAGEO",
+    "description": "1 kΩ, ±1%, 0.1 W, 0603, thick film",
+    "category": "Electronics/Passives/Resistors/Fixed",
+    "references": "R8, R9",
+    "BOM_quantity": 2,
+    "quantity_basis": "Original CSV; proposed mapping where manufacturer number changed",
+    "recorded_stock": 0,
+    "shortfall": 2,
+    "existing_part_id": null,
+    "action": "Create",
+    "packaging": "Cut Tape (CT)",
+    "source": "https://www.digikey.com/en/products/detail/yageo/RC0603FR-071KL/726843",
+    "status": "Active",
+    "attributes": [
+      [
+        "Features",
+        "Moisture Resistant"
+      ],
+      [
+        "Temperature Coefficient",
+        "±100ppm/°C"
+      ],
+      [
+        "Series",
+        "RC_L"
+      ],
+      [
+        "Operating Temperature",
+        "-55°C ~ 155°C"
+      ],
+      [
+        "Package / Case",
+        "0603 (1608 Metric)"
+      ],
+      [
+        "Supplier Device Package",
+        "0603"
+      ],
+      [
+        "Resistance",
+        "1 kOhms"
+      ],
+      [
+        "Size / Dimension",
+        "0.063\" L x 0.031\" W (1.60mm x 0.80mm)"
+      ],
+      [
+        "Tolerance",
+        "±1%"
+      ],
+      [
+        "Height - Seated (Max)",
+        "0.022\" (0.55mm)"
+      ],
+      [
+        "Power (Watts)",
+        "0.1W, 1/10W"
+      ],
+      [
+        "Number of Terminations",
+        "2"
+      ],
+      [
+        "Composition",
+        "Thick Film"
+      ]
+    ],
+    "notes": [],
+    "image_url": "https://mm.digikey.com/Volume0/opasdata/d220001/derivates/1/100/962/238/13_0603-%281608-metric%29_sml%28200x200%29.jpg",
+    "image_file": "/home/den/server-data/inventree/Downloads/Cleaning PCB V0.1/BOM Review/images/10.jpg",
+    "datasheet_status": "Linked from exact DigiKey.com product page; file not retrieved during analysis",
+    "datasheet_label": "L986: Datasheet  |  Datasheet†yageogroup.com"
+  },
+  {
+    "MPN": "KMR621NG LFS",
+    "SPN": "CKN10684CT-ND",
+    "manufacturer": "C&K",
+    "digikey_manufacturer": "C&K",
+    "description": "SPST-NO momentary; 50 mA at 32 VDC; IP67; 200 gf",
+    "category": "Electronics/Mechanical Switches/Tactile",
+    "references": "SW1, SW2",
+    "BOM_quantity": 2,
+    "quantity_basis": "Original CSV; proposed mapping where manufacturer number changed",
+    "recorded_stock": 0,
+    "shortfall": 2,
+    "existing_part_id": null,
+    "action": "Create",
+    "packaging": "Cut Tape (CT)",
+    "source": "https://www.digikey.com/en/products/detail/c-k/KMR621NG-LFS/6035350",
+    "status": "Active",
+    "attributes": [
+      [
+        "Actuator Height off PCB, Vertical",
+        "1.90mm"
+      ],
+      [
+        "Actuator Orientation",
+        "Top Actuated"
+      ],
+      [
+        "Series",
+        "KMR6"
+      ],
+      [
+        "Termination Style",
+        "Gull Wing"
+      ],
+      [
+        "Outline",
+        "4.20mm x 2.80mm"
+      ],
+      [
+        "Illumination",
+        "Non-Illuminated"
+      ],
+      [
+        "Circuit",
+        "SPST-NO"
+      ],
+      [
+        "Operating Force",
+        "200gf"
+      ],
+      [
+        "Switch Function",
+        "Off-Mom"
+      ],
+      [
+        "Ingress Protection",
+        "IP67 - Dust Tight, Waterproof"
+      ],
+      [
+        "Contact Rating @ Voltage",
+        "0.05A @ 32VDC"
+      ],
+      [
+        "Operating Temperature",
+        "-40°C ~ 85°C"
+      ],
+      [
+        "Actuator Type",
+        "Standard"
+      ],
+      [
+        "Mechanical Life",
+        "200,000 Cycles"
+      ],
+      [
+        "Mounting Type",
+        "Surface Mount"
+      ]
+    ],
+    "notes": [],
+    "image_url": "https://mm.digikey.com/Volume0/opasdata/d220001/derivates/1/100/464/028/KMR621NG-LFS_sml.jpg",
+    "image_file": "/home/den/server-data/inventree/Downloads/Cleaning PCB V0.1/BOM Review/images/11.jpg",
+    "datasheet_status": "Linked from exact DigiKey.com product page; file not retrieved during analysis",
+    "datasheet_label": "L987: Datasheet  |  Datasheet†www.littelfuse.com"
+  },
+  {
+    "MPN": "3782",
+    "SPN": "2183-3782-ND",
+    "manufacturer": "Pololu",
+    "digikey_manufacturer": "Pololu",
+    "description": "5 V buck module; 5.3–50 V input; 3.2 A listed; 16 W",
+    "category": "Electronics/Modules/Power Modules",
+    "references": "U1",
+    "BOM_quantity": 1,
+    "quantity_basis": "Original CSV; proposed mapping where manufacturer number changed",
+    "recorded_stock": 0,
+    "shortfall": 1,
+    "existing_part_id": 480,
+    "action": "Reuse",
+    "packaging": "Bulk",
+    "source": "https://www.digikey.com/en/products/detail/pololu/3782/10451209",
+    "status": "Active",
+    "attributes": [
+      [
+        "Voltage - Output 1",
+        "5V"
+      ],
+      [
+        "Current - Output (Max)",
+        "3.2A"
+      ],
+      [
+        "Series",
+        "D36V28"
+      ],
+      [
+        "Power (Watts)",
+        "16 W"
+      ],
+      [
+        "Efficiency",
+        "90%"
+      ],
+      [
+        "Mounting Type",
+        "Through Hole"
+      ],
+      [
+        "Type",
+        "Non-Isolated PoL Module"
+      ],
+      [
+        "Package / Case",
+        "5-SIP Module"
+      ],
+      [
+        "Number of Outputs",
+        "1"
+      ],
+      [
+        "Size / Dimension",
+        "0.80\" L x 0.70\" W x 0.35\" H (20.3mm x 17.8mm x 8.9mm)"
+      ],
+      [
+        "Voltage - Input (Min)",
+        "5.3V"
+      ],
+      [
+        "Control Features",
+        "Enable, Active Floating"
+      ],
+      [
+        "Voltage - Input (Max)",
+        "50V"
+      ]
+    ],
+    "notes": [
+      "Keep the existing manufacturer qualification: 3.2 A typical maximum at 36 V input, subject to cooling; not guaranteed throughout the input range. Retain manufacturer dimensions rather than overwriting with rounded distributor dimensions."
+    ],
+    "image_url": "https://mm.digikey.com/Volume0/opasdata/d220001/derivates/1/100/954/498/MFG_2183_3782_sml.jpg",
+    "image_file": "/home/den/server-data/inventree/Downloads/Cleaning PCB V0.1/BOM Review/images/12.jpg",
+    "datasheet_status": "Linked from exact DigiKey.com product page; file not retrieved during analysis",
+    "datasheet_label": "L983: Datasheet  |  Datasheet†www.pololu.com"
+  },
+  {
+    "MPN": "TXU0202DCUR",
+    "SPN": "296-TXU0202DCURCT-ND",
+    "manufacturer": "Texas Instruments",
+    "digikey_manufacturer": "Texas Instruments",
+    "description": "2-channel level translator; VCCA/VCCB 1.08–5.5 V; 200 Mbps; 8-VSSOP",
+    "category": "Electronics/ICs/Logic ICs",
+    "references": "U2",
+    "BOM_quantity": 1,
+    "quantity_basis": "Original CSV; proposed mapping where manufacturer number changed",
+    "recorded_stock": 0,
+    "shortfall": 1,
+    "existing_part_id": null,
+    "action": "Create",
+    "packaging": "Cut Tape (CT)",
+    "source": "https://www.digikey.com/en/products/detail/texas-instruments/TXU0202DCUR/16677096",
+    "status": "Active",
+    "attributes": [
+      [
+        "Voltage - VCCB",
+        "1.08 V ~ 5.5 V"
+      ],
+      [
+        "Output Type",
+        "Tri-State, Non-Inverted"
+      ],
+      [
+        "Data Rate",
+        "200Mbps"
+      ],
+      [
+        "Operating Temperature",
+        "-40°C ~ 125°C (TA)"
+      ],
+      [
+        "Translator Type",
+        "Voltage Level"
+      ],
+      [
+        "Mounting Type",
+        "Surface Mount"
+      ],
+      [
+        "Channel Type",
+        "Unidirectional"
+      ],
+      [
+        "Package / Case",
+        "8-VFSOP (0.091\", 2.30mm Width)"
+      ],
+      [
+        "Number of Circuits",
+        "1"
+      ],
+      [
+        "Supplier Device Package",
+        "8-VSSOP"
+      ],
+      [
+        "Channels per Circuit",
+        "2"
+      ],
+      [
+        "Voltage - VCCA",
+        "1.08 V ~ 5.5 V"
+      ]
+    ],
+    "notes": [
+      "Both supply domains share the listed 1.08–5.5 V limits. Preserve Unidirectional and Tri-State, Non-Inverted literally; do not infer protocol compatibility."
+    ],
+    "image_url": "https://mm.digikey.com/Volume0/opasdata/d220001/derivates/1/008/219/969/MFG_296~4200503~DCU~8_sml%28200x200%29.jpg",
+    "image_file": "/home/den/server-data/inventree/Downloads/Cleaning PCB V0.1/BOM Review/images/13.jpg",
+    "datasheet_status": "Linked from exact DigiKey.com product page; file not retrieved during analysis",
+    "datasheet_label": "L983: Datasheet  |  Datasheet†www.ti.com"
+  },
+  {
+    "MPN": "2814",
+    "SPN": "2183-2814-ND",
+    "manufacturer": "Pololu",
+    "digikey_manufacturer": "Pololu",
+    "description": "MOSFET load-switch board; sparse DigiKey ratings; retain existing Pololu data",
+    "category": "Electronics/Modules/Power Switch Modules",
+    "references": "U3, U5",
+    "BOM_quantity": 2,
+    "quantity_basis": "Original CSV; proposed mapping where manufacturer number changed",
+    "recorded_stock": 1,
+    "shortfall": 1,
+    "existing_part_id": 478,
+    "action": "Reuse and add DigiKey supplier",
+    "packaging": "Bulk",
+    "source": "https://www.digikey.com/en/products/detail/pololu/2814/10450362",
+    "status": "Active",
+    "attributes": [
+      [
+        "Function",
+        "Power Distribution Switch (Load Switch)"
+      ],
+      [
+        "Embedded",
+        "Yes"
+      ],
+      [
+        "Utilized IC / Part",
+        "BA2U12"
+      ],
+      [
+        "Contents",
+        "Board(s)"
+      ],
+      [
+        "Type",
+        "Power Management"
+      ]
+    ],
+    "notes": [
+      "DigiKey calls this a BA2U12 evaluation board and supplies no electrical limits. Preserve previously entered manufacturer-page data: 4.5–32 V recommended, 40 V absolute, 8 A thermally conditional; do not infer a new IC identity from this listing alone."
+    ],
+    "image_url": "https://mm.digikey.com/Volume0/opasdata/d220001/derivates/1/100/965/075/MFG_2183_2814_sml.jpg",
+    "image_file": "/home/den/server-data/inventree/Downloads/Cleaning PCB V0.1/BOM Review/images/14.jpg",
+    "datasheet_status": "Linked from exact DigiKey.com product page; file not retrieved during analysis",
+    "datasheet_label": "L983: Datasheet  |  Datasheet†www.pololu.com"
+  },
+  {
+    "MPN": "173020536",
+    "SPN": "732-173020536-ND",
+    "manufacturer": "Würth Elektronik",
+    "digikey_manufacturer": "Würth Elektronik",
+    "description": "5 V, 2 A buck module; 8–36 V input; 10 W; 3-SIP",
+    "category": "Electronics/Modules/Power Modules",
+    "references": "U4",
+    "BOM_quantity": 1,
+    "quantity_basis": "Original CSV; proposed mapping where manufacturer number changed",
+    "recorded_stock": 0,
+    "shortfall": 1,
+    "existing_part_id": null,
+    "action": "Create",
+    "packaging": "Tube",
+    "source": "https://www.digikey.com/en/products/detail/w%C3%BCrth-elektronik/173020536/26762577",
+    "status": "Active",
+    "attributes": [
+      [
+        "Voltage - Output 1",
+        "5V"
+      ],
+      [
+        "Current - Output (Max)",
+        "2A"
+      ],
+      [
+        "Series",
+        "MagI³C, FDSM"
+      ],
+      [
+        "Power (Watts)",
+        "10 W"
+      ],
+      [
+        "Applications",
+        "ITE (Commercial)"
+      ],
+      [
+        "Operating Temperature",
+        "-40°C ~ 85°C (With Derating)"
+      ],
+      [
+        "Type",
+        "Non-Isolated PoL Module"
+      ],
+      [
+        "Efficiency",
+        "91%"
+      ],
+      [
+        "Number of Outputs",
+        "1"
+      ],
+      [
+        "Mounting Type",
+        "Through Hole"
+      ],
+      [
+        "Voltage - Input (Min)",
+        "8V"
+      ],
+      [
+        "Package / Case",
+        "3-SIP Module"
+      ],
+      [
+        "Voltage - Input (Max)",
+        "36V"
+      ],
+      [
+        "Size / Dimension",
+        "0.45\" L x 0.35\" W x 0.69\" H (11.5mm x 9.0mm x 17.5mm)"
+      ]
+    ],
+    "notes": [
+      "Listed 11.5 x 9.0 mm body differs from original footprint name SIP3_11.6x8.5mm_WPME; check actual land pattern before assembly. Temperature range requires derating; efficiency conditions unspecified."
+    ],
+    "image_url": "https://mm.digikey.com/Volume0/opasdata/d220001/derivates/1/003/232/702/MFG_17302xx36_sml%28200x200%29.jpg",
+    "image_file": "/home/den/server-data/inventree/Downloads/Cleaning PCB V0.1/BOM Review/images/15.jpg",
+    "datasheet_status": "Linked from exact DigiKey.com product page; file not retrieved during analysis",
+    "datasheet_label": "L1010: Datasheet  |  Datasheet†www.we-online.com"
+  },
+  {
+    "MPN": "SC1176",
+    "SPN": "2648-SC1176-ND",
+    "manufacturer": "Raspberry Pi",
+    "digikey_manufacturer": "Raspberry Pi",
+    "description": "Zero 2 W SBC; 1 GHz, 4 cores, 512 MB RAM; header variant needs checking",
+    "category": "Electronics/Modules/Development Boards",
+    "references": "U6",
+    "BOM_quantity": 1,
+    "quantity_basis": "Original CSV; proposed mapping where manufacturer number changed",
+    "recorded_stock": 1,
+    "shortfall": 0,
+    "existing_part_id": 167,
+    "action": "Verify header variant before supplier link",
+    "packaging": "Bulk",
+    "source": "https://www.digikey.com/en/products/detail/raspberry-pi/SC1176/15298147",
+    "status": "Active",
+    "attributes": [
+      [
+        "Expansion Site/Bus",
+        "Bluetooth 4.2, BLE, HAT GPIO, LAN"
+      ],
+      [
+        "RAM Capacity/Installed",
+        "512MB/512MB"
+      ],
+      [
+        "Series",
+        "Raspberry Pi Zero 2 W"
+      ],
+      [
+        "Storage Interface",
+        "MicroSD"
+      ],
+      [
+        "Video Outputs",
+        "Composite, HDMI"
+      ],
+      [
+        "USB",
+        "USB 2.0 (1) OTG"
+      ],
+      [
+        "Core Processor",
+        "Broadcom BCM2710A1 Arm Cortex-A53"
+      ],
+      [
+        "Digital I/O Lines",
+        "40"
+      ],
+      [
+        "Speed",
+        "1GHz"
+      ],
+      [
+        "Operating Temperature",
+        "-20°C ~ 70°C"
+      ],
+      [
+        "Number of Cores",
+        "4"
+      ],
+      [
+        "Size / Dimension",
+        "2.600\" x 1.180\" (66.04mm x 29.97mm)"
+      ]
+    ],
+    "notes": [
+      "Existing record says Zero 2 WH with installed headers; DigiKey says Zero 2 W and representative image has no header. Confirm physical version before attaching this supplier identity. DigiKey dimensions 66.04 x 29.97 mm conflict with existing 65 x 30 mm; do not overwrite automatically. LAN is listed as expansion, not proof of a built-in Ethernet port."
+    ],
+    "image_url": "https://mm.digikey.com/Volume0/opasdata/d220001/derivates/1/030/813/555/MFG_SC0510_sml.jpg",
+    "image_file": "/home/den/server-data/inventree/Downloads/Cleaning PCB V0.1/BOM Review/images/16.jpg",
+    "datasheet_status": "Linked from exact DigiKey.com product page; file not retrieved during analysis",
+    "datasheet_label": "L984: Datasheet  |  Datasheet†datasheets.raspberrypi.com"
+  },
+  {
+    "MPN": "4035",
+    "SPN": "2183-4035-ND",
+    "manufacturer": "Pololu",
+    "digikey_manufacturer": "Pololu",
+    "description": "DRV8874 brushed-motor driver board; 4.5–37 V; 2.1 A",
+    "category": "Electronics/Modules/Motor Driver Modules",
+    "references": "U7",
+    "BOM_quantity": 1,
+    "quantity_basis": "Original CSV; proposed mapping where manufacturer number changed",
+    "recorded_stock": 1,
+    "shortfall": 0,
+    "existing_part_id": 477,
+    "action": "Reuse and add DigiKey supplier",
+    "packaging": "Bulk",
+    "source": "https://www.digikey.com/en/products/detail/pololu/4035/26714680",
+    "status": "Active",
+    "attributes": [
+      [
+        "Control / Drive Type",
+        "Brushed"
+      ],
+      [
+        "Number of Motors",
+        "1"
+      ],
+      [
+        "Series",
+        "DRV8874"
+      ],
+      [
+        "Voltage - Load",
+        "4.5 ~ 37V"
+      ],
+      [
+        "Current - Output",
+        "2.1A"
+      ],
+      [
+        "Voltage - Supply",
+        "4.5 ~ 37V"
+      ],
+      [
+        "Type",
+        "Board"
+      ],
+      [
+        "Mounting Type",
+        "Through Hole"
+      ],
+      [
+        "Motor Type",
+        "Brushed DC"
+      ],
+      [
+        "Weight",
+        "0.032 oz (0.90g)"
+      ]
+    ],
+    "notes": [
+      "Keep existing manufacturer-sourced current limit, interface and protection data in addition to sparse DigiKey attributes."
+    ],
+    "image_url": "https://mm.digikey.com/Volume0/opasdata/d220001/derivates/1/008/148/638/MFG_2183_4035_sml%28200x200%29.jpg",
+    "image_file": "/home/den/server-data/inventree/Downloads/Cleaning PCB V0.1/BOM Review/images/17.jpg",
+    "datasheet_status": "Linked from exact DigiKey.com product page; file not retrieved during analysis",
+    "datasheet_label": "L983: Datasheet  |  Datasheet†www.pololu.com"
+  },
+  {
+    "MPN": "74LVC2G14GV,125",
+    "SPN": "1727-6088-1-ND",
+    "manufacturer": "Nexperia USA Inc.",
+    "digikey_manufacturer": "Nexperia USA Inc.",
+    "description": "Dual Schmitt inverter; 1.65–5.5 V; 6-TSOP",
+    "category": "Electronics/ICs/Logic ICs",
+    "references": "U8",
+    "BOM_quantity": 1,
+    "quantity_basis": "Original CSV; proposed mapping where manufacturer number changed",
+    "recorded_stock": 21,
+    "shortfall": 0,
+    "existing_part_id": 31,
+    "action": "Reuse",
+    "packaging": "Cut Tape (CT)",
+    "source": "https://www.digikey.com/en/products/detail/nexperia-usa-inc/74LVC2G14GV-125/1231582",
+    "status": "Active",
+    "attributes": [
+      [
+        "Current - Quiescent (Max)",
+        "4 µA"
+      ],
+      [
+        "Current - Output High, Low",
+        "32mA, 32mA"
+      ],
+      [
+        "Series",
+        "74LVC"
+      ],
+      [
+        "Input Logic Level - Low",
+        "0.25V ~ 1.2V"
+      ],
+      [
+        "Input Logic Level - High",
+        "1.7V ~ 3.8V"
+      ],
+      [
+        "Max Propagation Delay @ V, Max CL",
+        "4.7ns @ 5V, 50pF"
+      ],
+      [
+        "Logic Type",
+        "Inverter"
+      ],
+      [
+        "Operating Temperature",
+        "-40°C ~ 125°C (TA)"
+      ],
+      [
+        "Number of Circuits",
+        "2"
+      ],
+      [
+        "Mounting Type",
+        "Surface Mount"
+      ],
+      [
+        "Number of Inputs",
+        "2"
+      ],
+      [
+        "Supplier Device Package",
+        "6-TSOP"
+      ],
+      [
+        "Features",
+        "Schmitt Trigger"
+      ],
+      [
+        "Package / Case",
+        "SC-74, SOT-457"
+      ],
+      [
+        "Voltage - Supply",
+        "1.65V ~ 5.5V"
+      ]
+    ],
+    "notes": [],
+    "image_url": "https://mm.digikey.com/Volume0/opasdata/d220001/derivates/1/003/253/533/MFG_1727~SOT457~GV~6_sml%28200x200%29.jpg",
+    "image_file": "/home/den/server-data/inventree/Downloads/Cleaning PCB V0.1/BOM Review/images/18.jpg",
+    "datasheet_status": "Linked from exact DigiKey.com product page; file not retrieved during analysis",
+    "datasheet_label": "L984: Datasheet  |  Datasheet†assets.nexperia.com"
+  },
+  {
+    "MPN": "UMK325AB7106KMHP",
+    "SPN": "587-6160-1-ND",
+    "manufacturer": "Taiyo Yuden",
+    "digikey_manufacturer": "Taiyo Yuden",
+    "description": "10 µF, 50 V, ±10%, X7R, 1210; AEC-Q200",
+    "category": "Electronics/Passives/Capacitors/Ceramic",
+    "references": "C1, C10, C5, C6, C7",
+    "BOM_quantity": 5,
+    "quantity_basis": "Original CSV; proposed mapping where manufacturer number changed",
+    "recorded_stock": 0,
+    "shortfall": 5,
+    "existing_part_id": null,
+    "action": "Create",
+    "packaging": "Cut Tape (CT)",
+    "source": "https://www.digikey.com/en/products/detail/taiyo-yuden/UMK325AB7106KMHP/8619563",
+    "status": "Active",
+    "attributes": [
+      [
+        "Operating Temperature",
+        "-55°C ~ 125°C"
+      ],
+      [
+        "Series",
+        "M"
+      ],
+      [
+        "Applications",
+        "Automotive, SMPS Filtering"
+      ],
+      [
+        "Mounting Type",
+        "Surface Mount, MLCC"
+      ],
+      [
+        "Package / Case",
+        "1210 (3225 Metric)"
+      ],
+      [
+        "Capacitance",
+        "10 µF"
+      ],
+      [
+        "Size / Dimension",
+        "0.126\" L x 0.098\" W (3.20mm x 2.50mm)"
+      ],
+      [
+        "Tolerance",
+        "±10%"
+      ],
+      [
+        "Thickness (Max)",
+        "0.110\" (2.80mm)"
+      ],
+      [
+        "Voltage - Rated",
+        "50V"
+      ],
+      [
+        "Temperature Coefficient",
+        "X7R"
+      ]
+    ],
+    "notes": [
+      "Proposed replacement for 885012209073; same nominal value/package, not a confirmed design substitution."
+    ],
+    "image_url": "https://mm.digikey.com/Volume0/opasdata/d220001/derivates/1/100/963/261/587_1210-%283225-Metric%29-2%2C70mm_sml.jpg",
+    "image_file": "/home/den/server-data/inventree/Downloads/Cleaning PCB V0.1/BOM Review/images/19.jpg",
+    "datasheet_status": "Linked from exact DigiKey.com product page; file not retrieved during analysis",
+    "datasheet_label": "L987: Datasheet  |  Datasheet†mm.digikey.com"
+  },
+  {
+    "MPN": "B360A-13-F",
+    "SPN": "B360A-FDICT-ND",
+    "manufacturer": "Diodes Inc",
+    "digikey_manufacturer": "Diodes Incorporated",
+    "description": "Schottky diode; 60 V, 3 A; Vf max 0.7 V at 3 A; SMA",
+    "category": "Electronics/Diodes/Schottky",
+    "references": "D1, D2",
+    "BOM_quantity": 2,
+    "quantity_basis": "Original CSV; proposed mapping where manufacturer number changed",
+    "recorded_stock": 0,
+    "shortfall": 2,
+    "existing_part_id": null,
+    "action": "Create",
+    "packaging": "Cut Tape (CT)",
+    "source": "https://www.digikey.com/en/products/detail/diodes-incorporated/B360A-13-F/724950",
+    "status": "Active",
+    "attributes": [
+      [
+        "Current - Reverse Leakage @ Vr",
+        "500 µA @ 60 V"
+      ],
+      [
+        "Capacitance @ Vr, F",
+        "200pF @ 4V, 1MHz"
+      ],
+      [
+        "Grade",
+        "Automotive"
+      ],
+      [
+        "Qualification",
+        "AEC-Q101"
+      ],
+      [
+        "Technology",
+        "Schottky"
+      ],
+      [
+        "Mounting Type",
+        "Surface Mount"
+      ],
+      [
+        "Voltage - DC Reverse (Vr) (Max)",
+        "60 V"
+      ],
+      [
+        "Package / Case",
+        "DO-214AC, SMA"
+      ],
+      [
+        "Current - Average Rectified (Io)",
+        "3A"
+      ],
+      [
+        "Supplier Device Package",
+        "SMA"
+      ],
+      [
+        "Voltage - Forward (Vf) (Max) @ If",
+        "700 mV @ 3 A"
+      ],
+      [
+        "Operating Temperature - Junction",
+        "-55°C ~ 150°C"
+      ],
+      [
+        "Speed",
+        "Fast Recovery =< 500ns, > 200mA (Io)"
+      ]
+    ],
+    "notes": [
+      "Temperature is junction temperature. Leakage conditions 500 µA at 60 V; capacitance 200 pF at 4 V, 1 MHz. Do not relabel these as unconditional values."
+    ],
+    "image_url": "https://mm.digikey.com/Volume0/opasdata/d220001/derivates/1/002/172/140/31~SMA~~2_sml%28200x200%29.jpg",
+    "image_file": "/home/den/server-data/inventree/Downloads/Cleaning PCB V0.1/BOM Review/images/20.jpg",
+    "datasheet_status": "Linked from exact DigiKey.com product page; file not retrieved during analysis",
+    "datasheet_label": "L988: Datasheet  |  Datasheet†www.diodes.com"
+  },
+  {
+    "MPN": "OSTYC022150",
+    "SPN": "ED2902-ND",
+    "manufacturer": "On Shore Technology Inc.",
+    "digikey_manufacturer": "On Shore Technology Inc.",
+    "description": "2-pin screw terminal; 5.08 mm pitch; 10 A, 300 V; THT",
+    "category": "Electronics/Connectors/Terminal Blocks",
+    "references": "J1, J2, J3, J4, J5, J6, J7, J8",
+    "BOM_quantity": 8,
+    "quantity_basis": "Original CSV; proposed mapping where manufacturer number changed",
+    "recorded_stock": 28,
+    "shortfall": 0,
+    "existing_part_id": 170,
+    "action": "Reuse",
+    "packaging": "Bulk",
+    "source": "https://www.digikey.com/en/products/detail/on-shore-technology-inc/OSTYC022150/1588994",
+    "status": "Active",
+    "attributes": [
+      [
+        "Mounting Type",
+        "Through Hole"
+      ],
+      [
+        "Wire Termination",
+        "Screw - Rising Cage Clamp"
+      ],
+      [
+        "Series",
+        "OSTYC"
+      ],
+      [
+        "Features",
+        "Interlocking (Side)"
+      ],
+      [
+        "Color",
+        "Green"
+      ],
+      [
+        "Operating Temperature",
+        "-30°C ~ 105°C"
+      ],
+      [
+        "Number of Levels",
+        "1"
+      ],
+      [
+        "Housing Material",
+        "Thermoplastic"
+      ],
+      [
+        "Positions Per Level",
+        "2"
+      ],
+      [
+        "Contact Material - Plating",
+        "Brass"
+      ],
+      [
+        "Pitch",
+        "0.200\" (5.08mm)"
+      ],
+      [
+        "Clamp Material - Plating",
+        "Brass"
+      ],
+      [
+        "Mating Orientation",
+        "Horizontal with Board"
+      ],
+      [
+        "Screw Material - Plating",
+        "Steel - Zinc Plated"
+      ],
+      [
+        "Current",
+        "10 A"
+      ],
+      [
+        "Torque - Screw",
+        "0.4 Nm (3.5 Lb-In)"
+      ],
+      [
+        "Voltage",
+        "300 V"
+      ],
+      [
+        "Screw Thread",
+        "M2.5"
+      ],
+      [
+        "Wire Gauge",
+        "16-26 AWG"
+      ]
+    ],
+    "notes": [],
+    "image_url": "https://mm.digikey.com/Volume0/opasdata/d220001/derivates/1/300/899/125/OSTYC022150_sml.jpg",
+    "image_file": "/home/den/server-data/inventree/Downloads/Cleaning PCB V0.1/BOM Review/images/21.jpg",
+    "datasheet_status": "Linked from exact DigiKey.com product page; file not retrieved during analysis",
+    "datasheet_label": "L989: Datasheet  |  Datasheet†www.on-shore.com"
+  },
+  {
+    "MPN": "CRG0603F2K0",
+    "SPN": "1712-CRG0603F2K0CT-ND",
+    "manufacturer": "TE Connectivity",
+    "digikey_manufacturer": "TE Connectivity Passive Product",
+    "description": "2 kΩ, ±1%, 0.1 W, 0603, thick film",
+    "category": "Electronics/Passives/Resistors/Fixed",
+    "references": "R12, R13",
+    "BOM_quantity": 2,
+    "quantity_basis": "Original CSV; proposed mapping where manufacturer number changed",
+    "recorded_stock": 0,
+    "shortfall": 2,
+    "existing_part_id": null,
+    "action": "Create",
+    "packaging": "Cut Tape (CT)",
+    "source": "https://www.digikey.com/en/products/detail/te-connectivity-passive-product/CRG0603F2K0/2380757",
+    "status": "Active",
+    "attributes": [
+      [
+        "Temperature Coefficient",
+        "±100ppm/°C"
+      ],
+      [
+        "Operating Temperature",
+        "-55°C ~ 155°C"
+      ],
+      [
+        "Series",
+        "CRG, Neohm"
+      ],
+      [
+        "Package / Case",
+        "0603 (1608 Metric)"
+      ],
+      [
+        "Supplier Device Package",
+        "0603"
+      ],
+      [
+        "Size / Dimension",
+        "0.063\" L x 0.031\" W (1.60mm x 0.80mm)"
+      ],
+      [
+        "Resistance",
+        "2 kOhms"
+      ],
+      [
+        "Height - Seated (Max)",
+        "0.022\" (0.55mm)"
+      ],
+      [
+        "Tolerance",
+        "±1%"
+      ],
+      [
+        "Number of Terminations",
+        "2"
+      ],
+      [
+        "Power (Watts)",
+        "0.1W, 1/10W"
+      ],
+      [
+        "Composition",
+        "Thick Film"
+      ]
+    ],
+    "notes": [
+      "Proposed replacement for RC0603FR-072KL; same nominal value/package, not a confirmed design substitution."
+    ],
+    "image_url": "https://mm.digikey.com/Volume0/opasdata/d220001/derivates/1/002/645/278/CRG%2C%20Neohm%200603%20%281608%20Metric%29_sml%28200x200%29.jpg",
+    "image_file": "/home/den/server-data/inventree/Downloads/Cleaning PCB V0.1/BOM Review/images/22.jpg",
+    "datasheet_status": "Linked from exact DigiKey.com product page; file not retrieved during analysis",
+    "datasheet_label": "L983: Datasheet  |  Datasheet†www.te.com"
+  },
+  {
+    "MPN": "CRG0603F10K/10",
+    "SPN": "A121523CT-ND",
+    "manufacturer": "TE Connectivity",
+    "digikey_manufacturer": "TE Connectivity Passive Product",
+    "description": "10 kΩ, ±1%, 0.1 W, 0603, thick film",
+    "category": "Electronics/Passives/Resistors/Fixed",
+    "references": "R6, R7",
+    "BOM_quantity": 2,
+    "quantity_basis": "Original CSV; proposed mapping where manufacturer number changed",
+    "recorded_stock": 0,
+    "shortfall": 2,
+    "existing_part_id": null,
+    "action": "Create",
+    "packaging": "Cut Tape (CT)",
+    "source": "https://www.digikey.com/en/products/detail/te-connectivity-passive-product/CRG0603F10K-10/2390661",
+    "status": "Active",
+    "attributes": [
+      [
+        "Temperature Coefficient",
+        "±100ppm/°C"
+      ],
+      [
+        "Operating Temperature",
+        "-55°C ~ 155°C"
+      ],
+      [
+        "Series",
+        "CRG, Neohm"
+      ],
+      [
+        "Package / Case",
+        "0603 (1608 Metric)"
+      ],
+      [
+        "Supplier Device Package",
+        "0603"
+      ],
+      [
+        "Size / Dimension",
+        "0.063\" L x 0.031\" W (1.60mm x 0.80mm)"
+      ],
+      [
+        "Resistance",
+        "10 kOhms"
+      ],
+      [
+        "Height - Seated (Max)",
+        "0.022\" (0.55mm)"
+      ],
+      [
+        "Tolerance",
+        "±1%"
+      ],
+      [
+        "Number of Terminations",
+        "2"
+      ],
+      [
+        "Power (Watts)",
+        "0.1W, 1/10W"
+      ],
+      [
+        "Composition",
+        "Thick Film"
+      ]
+    ],
+    "notes": [
+      "Proposed replacement for RC0603FR-0710KL; same nominal value/package, not a confirmed design substitution."
+    ],
+    "image_url": "https://mm.digikey.com/Volume0/opasdata/d220001/derivates/1/002/645/278/CRG%2C%20Neohm%200603%20%281608%20Metric%29_sml%28200x200%29.jpg",
+    "image_file": "/home/den/server-data/inventree/Downloads/Cleaning PCB V0.1/BOM Review/images/23.jpg",
+    "datasheet_status": "Linked from exact DigiKey.com product page; file not retrieved during analysis",
+    "datasheet_label": "L983: Datasheet  |  Datasheet†www.te.com"
+  }
+]

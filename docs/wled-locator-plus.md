@@ -1,335 +1,230 @@
-# WLED Locator Plus Context
-
-## Purpose
-
-`WLED Locator Plus` is a private InvenTree plugin for locating stored electronic components with WLED LED controllers.
-
-The core flow is:
-
-```text
-Part / StockItem / StockLocation -> StockLocation metadata -> WLED controller + LED index
-```
-
-The plugin does not replace InvenTree stock management. InvenTree remains the source of truth for Parts, StockItems, and StockLocations. The plugin only stores the LED mapping needed to physically locate a StockLocation.
-
-## Current Stack
-
-The project uses:
-
-* InvenTree running from the local Docker deployment.
-* A local InvenTree plugin package in `inventree-data/plugins/inventree_wled_locator_plus/`.
-* Django views and InvenTree plugin mixins: `UrlsMixin`, `LocateMixin`, and `UserInterfaceMixin`.
-* StockLocation metadata for LED assignments.
-* Internal plugin settings for WLED controller configuration.
-* Plain JavaScript static files with no frontend build step.
-* WLED JSON endpoints:
-  * `/json/info` for read-only sync.
-  * `/json/state` for test, locate, clear, and off actions.
-
-No plugin database migrations, external Python packages, PyPI packaging, CI, pytest setup, or frontend build tools are currently used.
-
-## Transfer Unit
-
-The plugin is intended to move as one folder:
-
-```text
-inventree-data/plugins/inventree_wled_locator_plus/
-```
-
-Optional handoff documentation lives in:
-
-```text
-docs/wled-locator-plus.md
-```
-
-Do not copy unrelated InvenTree project files when transferring only the plugin. In particular, do not copy `Caddyfile`, `.env`, Docker volumes, generated static files, database files, or unrelated Markdown notes unless the server migration specifically requires them.
-
-Exclude generated cache directories:
-
-```text
-__pycache__/
-```
-
-Important transfer distinction:
-
-* Copying the plugin folder transfers plugin code only.
-* WLED controller records live in InvenTree plugin settings.
-* LED assignments live in InvenTree StockLocation metadata.
-* If the InvenTree database is migrated, settings and mappings should move with it.
-* If installing into a fresh InvenTree database, WLED controllers and StockLocation LED mappings must be recreated.
-
-## Architecture
-
-Runtime configuration is stored in internal plugin settings:
-
-```text
-_WLED_CONTROLLERS
-_CLEAR_COLOR
-_REQUEST_TIMEOUT
-```
-
-StockLocation mapping data is stored in one metadata key:
-
-```text
-StockLocation.metadata["wled_indicator"] = {"controller": "<label>", "led": <zero_based_index>}
-```
-
-There is no separate LED-only metadata key. Do not reintroduce `wled_led` or similar legacy mapping data.
-
-Locate flow:
-
-```text
-UI action or InvenTree locate API
--> plugin view or LocateMixin method
--> LocatorService resolves mapped StockLocations
--> LEDs are grouped by WLED controller
--> all configured WLED controllers are cleared
--> only the target LEDs are lit
-```
-
-All configured WLED controllers act as one locator system. More controllers can be added without a fixed controller limit.
-
-LED numbering rule:
-
-* UI displays LED numbers as 1-based for humans.
-* WLED and stored metadata use zero-based indexes.
-
-StockLocation rule:
-
-* Leaf StockLocations can receive direct LED assignments.
-* Parent StockLocations are locate-only containers and should not receive direct LED assignments.
-* Locating a parent StockLocation lights mapped child locations.
-
-## User Interfaces
-
-### Plugin Configuration
-
-Plugin Configuration is the normal setup surface for WLED controllers and maintenance actions.
-
-Supported setup flow:
-
-1. Add a WLED controller label and address.
-2. Click Sync to read WLED `/json/info`.
-3. If sync fails, manually enter LED count and marker color.
-4. Save the controller.
-
-Plugin Configuration also manages:
-
-* Clear color.
-* WLED request timeout.
-* Controller deletion.
-* Mapping summary.
-* Controller-wide mapping reassign that preserves LED numbers.
-* Confirmed mapping clear.
-
-The generic InvenTree Plugin Settings rows are intentionally not used for normal WLED setup.
-
-### Native InvenTree Panels
-
-Native panels are registered on:
-
-* Part pages.
-* Build Order pages.
-* StockItem pages.
-* StockLocation pages.
-
-The panels can preview, locate, test, assign, or clear mappings depending on the object type. Actions display concise human-readable results instead of raw JSON dumps.
-
-### External Dashboard
-
-The dashboard is available at:
-
-```text
-/plugin/wled-locator-plus/
-```
-
-It is a plain plugin-rendered HTML page for overview and maintenance. It supports:
-
-* Filtering by WLED controller, parent StockLocation, search text, state, and LED number.
-* A full LED map for every configured WLED controller.
-* Used/free/conflict counts per controller.
-* Conflict detection.
-* Stocked-without-LED detection.
-* Single-location locate actions.
-* Filtered locate.
-* Selected-row locate.
-* Selected-row reassign to any WLED and Start LED.
-* Selected-row clear with browser confirmation.
-
-The normal InvenTree main navigation entry is disabled because InvenTree's React frontend routes plugin links under `/web/` in a way that breaks direct backend plugin pages. Use the direct dashboard URL, the Spotlight action, or the `Open Indicator Dashboard` button in native plugin panels.
-
-## Implemented Behavior
-
-Current implemented features:
-
-* Multiple WLED controllers with no hard-coded controller limit.
-* WLED controller Sync from `/json/info`.
-* Manual fallback for WLED LED count when Sync is unavailable.
-* Marker color per WLED controller.
-* Global clear color and request timeout.
-* StockLocation mapping to a controller label and LED index.
-* Clear mapping for a StockLocation.
-* Locate Part by lighting mapped locations for available StockItems.
-* Locate Build Order by lighting mapped locations for allocated StockItems.
-* Locate StockItem through its StockLocation.
-* Locate leaf or parent StockLocation.
-* Clear all controllers before locate/test so stale LEDs are not left on other controllers.
-* Clear all controllers when a locate target cannot be resolved.
-* Dashboard filters and maintenance tools for larger inventories.
-* Concise UI messages instead of raw WLED JSON output.
-
-## Decisions Already Made
-
-Keep these decisions unless the user explicitly changes direction:
-
-* Keep plugin code inside `inventree_wled_locator_plus/`.
-* Keep transferable plugin documentation under `docs/`.
-* Leave the original top-level `README.md` untouched.
-* Do not create top-level milestone or feature Markdown files.
-* Use StockLocation metadata instead of adding database migrations.
-* Use internal plugin settings instead of generic Plugin Settings rows.
-* Do not hard-code WLED addresses or LED counts in code.
-* Do not set a fixed number of WLED controllers.
-* Keep controller setup in Plugin Configuration.
-* Keep StockLocation assignment in native InvenTree panels.
-* Keep the dashboard as an overview and bulk-maintenance surface.
-* Keep hardware writes behind explicit user actions.
-* Do not introduce external dependencies or build tooling without approval.
-
-There is still an internal `primary` or default-controller flag in the WLED client for compatibility and default panel selection. It is not exposed as a user workflow and should not be expanded into one.
-
-## Problems Solved
-
-The current implementation already resolved these project issues:
-
-* Replaced single-controller assumptions with controller-aware mappings.
-* Removed the fixed controller limit.
-* Removed separate LED-only mapping metadata from the active design.
-* Moved WLED setup into one custom Plugin Configuration UI.
-* Added Sync plus manual fallback for controller LED count.
-* Replaced raw JSON UI output with concise summaries.
-* Added clear mapping actions.
-* Fixed stale LED behavior by clearing all controllers before locate/test and on locate failures.
-* Added a dashboard for filtering, conflicts, stocked-without-LED checks, and bulk actions.
-* Kept plugin transfer simple by containing code in the plugin package and documentation in `docs/`.
-
-## Known Limitations
-
-Current limitations and risks:
-
-* Plugin URLs require an authenticated InvenTree superuser session.
-* The external dashboard is plain plugin-rendered HTML, not part of the InvenTree React frontend.
-* A normal InvenTree main navigation item for the dashboard is not reliable without changing InvenTree frontend/core or proxy behavior.
-* WLED Sync depends on network access to the controller; manual LED count exists as fallback.
-* Live test, locate, clear, and off actions write to real WLED hardware.
-* Runtime may recreate `__pycache__/`; exclude it from transferred plugin packages.
-* There is no dedicated automated regression test suite yet.
-* Plugin Configuration controller-wide reassign preserves existing LED numbers. Use the dashboard selected-row reassign when moving locations to arbitrary target LEDs.
-
-## File Map
-
-Plugin code:
-
-```text
-inventree-data/plugins/inventree_wled_locator_plus/
-```
-
-Main files:
-
-```text
-plugin.py      # plugin class, internal settings, URLs, native panels, locate wrappers
-views.py       # Django endpoints for controllers, mappings, locate, preview, test, clear
-wled.py        # WLED validation and /json/info, /json/state HTTP requests
-locator.py     # Part, Build, StockItem, StockLocation lookup and locate planning
-mapping.py     # StockLocation metadata read/write helpers for wled_indicator
-dashboard.py   # dashboard filtering, row construction, usage/conflict summaries
-page.py        # plain HTML external dashboard renderer
-constants.py   # shared constants and internal setting keys
-```
-
-Static UI files:
-
-```text
-static/admin_settings.js                   # Plugin Configuration WLED setup and mapping tools
-static/panel_common.js                     # shared native-panel helpers
-static/locator_panel.js                    # Part and Build panels
-static/stock_item_panel.js                 # StockItem panel
-static/stock_location_indicator_panel.js   # StockLocation panel
-static/locator_actions.js                  # Spotlight actions
-```
-
-## Installation On Another InvenTree Instance
-
-For a plugin-only install:
-
-1. Copy `inventree-data/plugins/inventree_wled_locator_plus/` to the target InvenTree plugin directory.
-2. Exclude `__pycache__/`.
-3. Restart the InvenTree server and worker.
-4. Enable `WLED Locator Plus` in InvenTree if it is not active.
-5. Open Plugin Configuration and add or verify WLED controllers.
-6. Recreate StockLocation LED mappings if the InvenTree database was not migrated.
-7. Open `/plugin/wled-locator-plus/` and verify that the dashboard loads.
-8. Test one safe LED only when ready to intentionally write to WLED hardware.
-
-Example archive command from the current host:
+# WLED Locator Plus
+
+Private InvenTree addon in
+[`data/plugins/inventree_wled_locator_plus/`](../data/plugins/inventree_wled_locator_plus/).
+InvenTree owns inventory; the addon stores location-to-LED mappings and operates
+the locator. See [warehouse.md](warehouse.md) for entry/storage rules and
+[inventree-maintenance.md](inventree-maintenance.md) for deployment operations.
+
+## User workflows
+
+| Surface | Use |
+|---|---|
+| Part Finder: `/plugin/wled-locator-plus/finder/` | Search and locate several parts together. Frontend alias: `/web/plugin/wled-locator-plus/finder/`. |
+| Location indicators: `/plugin/wled-locator-plus/` | Inspect/review/edit mappings and use controller tools. This is a maintenance dashboard. |
+| Native Part / Build / StockItem / StockLocation panels | Preview, locate and edit mappings appropriate to that object. |
+| Plugin Configuration | Add/sync controllers, set LED counts/colours/timeout and manage controller-wide mappings. |
+
+Custom pages/endpoints require an authenticated superuser session. Use direct
+links, Spotlight or native-panel dashboard buttons; normal frontend dashboard
+navigation is not reliable. Backend pages also have registered `/web/` aliases.
+
+### Find several parts
+
+1. Enter one request per line or separate requests with semicolons, e.g.
+   `NE555; 10k resistor; M3 nut`. Search with the button or Ctrl/Cmd+Enter.
+2. Review each result group and its existing inventory images. **Load more**
+   appends another page for that query. Nothing is selected automatically.
+3. **Add** the desired matches. A part appears once in the selection even if
+   several queries match it; further searches preserve the selection.
+4. Wait for current stock/mapping checks, then **Locate selected**. Each selected
+   part needs at least one usable mapped stock location. Other skipped locations
+   remain warnings. The backend rechecks before operating hardware.
+5. **All off** clears the locator. **Remove** and **Clear list** only edit the list.
+
+Search covers active, non-virtual parts. Literal terms must each match name, IPN,
+keywords, description or manufacturer MPN. Exact IPN/name/MPN rank first, followed
+by stable name/ID order. This is not fuzzy or semantic search.
+
+Value matching supports one unambiguous primary resistance, capacitance or
+inductance per request: `10kΩ` = `10000 ohms`, `100nF` = `0.1uF`, `10uH` = `0.01mH`.
+Resistor context permits `10k resistor`, `4k7 resistor`, `4R7 resistor` and `0R`;
+unqualified `10k` stays literal. Prefix case matters (`M` mega, `m` milli).
+The page displays the interpretation. Supported value text and existing numeric
+`Resistance`/`Capacitance`/`Inductance` parameters are searched; unrelated
+properties such as ESR are excluded. Structured values use base SI numeric
+indexes with only float round-off allowance, not component tolerance.
+
+Remaining terms still constrain text matches. Package, voltage, power and
+tolerance are not general structured parameter filters. Unsupported values,
+ranges, conflicting hints and multiple values in one query stay literal. This
+normalization belongs to Part Finder, not InvenTree core search or the dashboard.
+
+Availability uses native in-stock rules and assigned locations. Quantities are
+physical stock, not unallocated availability; build allocations are not deducted
+from finder totals. Missing locations/mappings are shown. Search reads stored
+image URLs without downloading assets or regenerating thumbnails; failed images
+fall back to the original or a placeholder.
+
+### Selection recovery
+
+The current account's selected IDs and exact search text are saved in this
+browser's same-origin `localStorage`. Reopening/refreshing restores the list and
+performs a fresh preview; Locate stays disabled until that check succeeds.
+Missing parts remain removable. **Retry location check** handles read failures.
+Restoration does not search, locate or clear lights; search again for result cards.
+
+Only version, IDs and text are stored under
+`wled-locator-plus.finder.v1.user.<user ID>`, without quantities, mappings,
+credentials, images or action history. Clear list retains search text; clearing
+both removes the saved record. Invalid records are discarded and unavailable
+storage leaves in-page use working. Tabs keep separate working selections;
+latest saved edits are restored, without live cross-tab or cross-device sync.
+
+### Setup and mappings
+
+In Plugin Configuration, add a controller label/address, **Sync** its
+`/json/info`, or supply a manual LED count if unavailable. Save a marker colour;
+clear colour and request timeout apply globally. Controller-wide reassign keeps
+LED numbers; arbitrary remapping uses the dashboard's selected-row editor.
+
+The dashboard filters/paginates locations and shows mapped/shared/unmapped/invalid
+states. Review changes before saving; a stale review requires a new review.
+Batch saves are atomic and update only the mapping metadata. Selection is limited
+to the current page. Counts distinguish parts from stock records, not quantities.
+Controller tools show saved usage, not live connectivity. Selecting an LED cell
+does not operate it; **Test LED**, Locate and All off are explicit commands.
+
+Native panels begin with a preview and offer retry on read failures. They refresh
+after writes, validate whole-number LED inputs and lock controls during actions.
+StockItem mapping controls follow its current checked location. Parent locations
+are locate-only; assignment forms apply to leaves.
+
+## Data and hardware behaviour
+
+- Controllers/options live in database plugin settings `_WLED_CONTROLLERS`,
+  `_CLEAR_COLOR`, `_REQUEST_TIMEOUT`; normal setup uses Plugin Configuration.
+- Location metadata is `wled_indicator`, for example
+  `{"controller":"cabinet","led":0,"leds":[0,1]}`. `led` is the first LED;
+  `leds` supports multiple LEDs. Single-LED metadata remains readable.
+- Display LEDs start at **1**; metadata, native URL indexes and WLED use **0**.
+  Shared LEDs are legitimate, including split drawers and oversized shelf objects.
+  Do not renumber or automatically "repair" sharing.
+- Leaves have direct assignments. Locating a parent expands mapped descendant
+  leaves. Parts use available StockItems; Builds use allocated stock.
+- All configured controllers form one locator system. Locate/test clears the
+  system once, then lights the deduplicated controller/LED union. Segment zero is
+  normalized to span the strip before physical indexes are used.
+- Finder/dashboard validate the whole selection before clearing. Native locate
+  workflows retain their existing clear-on-unresolved behaviour. Failed hardware
+  execution can leave partial results; success must not be inferred from a timeout.
+- Search/finder preview/dashboard reads use saved counts and do not contact WLED.
+  A missing count needs sync/manual setup. Native setup/single-object workflows
+  can discover counts. WLED uses `/json/info` and `/json/state`.
+- Hardware writes share a nonblocking Unix lock at
+  `MEDIA_ROOT/.wled-locator-plus.lock` on the shared server/worker volume. Do not
+  unlink it during operation. The OS releases the lock when its holder exits.
+
+## Finder and dashboard APIs
+
+Prefix: `/plugin/wled-locator-plus/`. JSON POSTs require a superuser session,
+`Content-Type: application/json` and Django CSRF token in `X-CSRFToken`.
+Pages/preview reads are not cached. Native mutation URLs also require protected
+POST; old GET-based action links are rejected. Direct LocateMixin entrypoints
+remain available to InvenTree.
+
+| Endpoint | Request / purpose |
+|---|---|
+| POST `finder/search/` | `{"queries":["NE555","100nF capacitor"],"limit":5}`. Separate result groups, stock/images, `has_more`, `next_cursor`, `value_match`. |
+| POST `finder/search/` with cursor | `{"queries":["NE555"],"cursor":"<returned cursor>"}`. One query, query-bound signed cursor, one-hour expiry. |
+| POST `finder/preview/` | `{"part_ids":[12,34]}`. Current parts, missing IDs, availability and combined target plan. |
+| POST `finder/locate/` | Same IDs; resolves fresh data and operates only a valid selection. IDs here are placeholders. |
+| POST `finder/off/` | `{}`. Clear the locator system. |
+| GET `dashboard/data/` | Filtered/paginated snapshot and mapping/controller usage. |
+| POST `dashboard/action/` | Command `preview`, `save`, `locate`, `test` or `off`; mapping review/save includes revision validation. |
+| GET `preview/location/<id>/` | Native location readiness; other native previews cover Parts, Builds and StockItems. |
+
+Limits: 64 KiB JSON; 1–20 queries, 200 characters/12 terms each; default five,
+maximum ten matches per query per page; 1–100 selected positive integer IDs.
+Cursor paging uses `(rank,name,ID)` rather than OFFSET. Live catalog edits can
+move results; the UI deduplicates and cancels superseded requests.
+
+Errors include 400 validation, 403 authentication/CSRF, 405 method, 413 size,
+415 media type, 409 stale/invalid selection, 502 WLED transport and 503
+`locator_busy` with `Retry-After: 1`. Finder 409 includes
+`code: selection_not_locatable` and corrective `preview`; dashboard conflicts use
+`mapping_changed`. Responses use `success`, `action` and error/result fields.
+
+## Source map
+
+All paths below are relative to the plugin directory; no frontend build,
+external runtime dependency or plugin database migration is required.
+
+| Files | Responsibility |
+|---|---|
+| `__init__.py`, `plugin.py`, `constants.py` | Plugin registration, settings/facade, native panels, routes and shared identifiers. |
+| `views.py` | Authenticated HTTP endpoints, validation and responses. |
+| `wled.py`, `mapping.py`, `locator.py` | Controller transport/configuration, metadata helpers, inventory resolution and previews/plans. |
+| `operations.py`, `planning.py`, `execution.py`, `locking.py` | Per-operation caches, ordered target union, hardware execution and cross-process serialization. |
+| `finder.py`, `search_terms.py` | Search/availability/paging/selection and conservative value normalization. |
+| `dashboard.py` | Mapping snapshots, sharing and reviewed transactional edits. |
+| `page.py`, `finder_page.py` | Dashboard/finder rendering and CSRF bootstrap. |
+| `templates/dashboard.html`, `templates/finder.html` | Page layouts. |
+| `static/dashboard_page.js`, `static/dashboard_page.css` | Dashboard editor, filters and controller tools. |
+| `static/finder_page.js`, `static/finder_page.css` | Search/results, images, selection recovery and locate controls. |
+| `static/admin_settings.js` | Plugin Configuration UI. |
+| `static/panel_common.js`, `static/locator_panel.js` | Shared native-panel helpers and Part/Build panels. |
+| `static/stock_item_panel.js`, `static/stock_location_indicator_panel.js` | StockItem and StockLocation panels. |
+| `static/locator_actions.js` | Spotlight/navigation actions. |
+| `tests/support.py`, `tests/test_refactor.py`, `tests/test_facade.py` | Offline fixtures, backend regressions and protected callback checks. |
+| `tests/test_queries.py`, `tests/test_search_terms.py`, `tests/test_locking.py` | Disposable ORM queries, value parsing and process locking. |
+| `tests/render_{finder,dashboard,panels}_fixture.py` | Export synthetic browser fixtures. |
+| `tests/browser_{finder,dashboard,panels}.py` | Optional Playwright checks with intercepted HTTP. |
+
+## Development, activation and transfer
+
+Run backend regressions with the container's installed dependencies:
 
 ```bash
-tar --exclude='__pycache__' -czf wled-locator-plus-plugin.tar.gz -C /home/denys/inventree/inventree-data/plugins inventree_wled_locator_plus
+cd /home/den/server-data/inventree
+docker compose exec -T inventree-server python3 -B -m unittest discover \
+  -s /home/inventree/data/plugins/inventree_wled_locator_plus/tests
 ```
 
-## Useful Verification
-
-For code changes, use checks that do not write generated files into the plugin package:
+Tests use fixture settings/inventory, mocked controller HTTP and disposable
+in-memory ORM models, without initializing production InvenTree. Optional browser
+checks use development-only Playwright/Chromium; export fixtures first, e.g.:
 
 ```bash
-PYTHONPYCACHEPREFIX=/tmp/inventree-wled-pycache python3 -m py_compile /home/denys/inventree/inventree-data/plugins/inventree_wled_locator_plus/*.py
+docker compose exec -T inventree-server python3 -B \
+  /home/inventree/data/plugins/inventree_wled_locator_plus/tests/render_finder_fixture.py \
+  /tmp/wled-finder-fixtures
+docker cp inventree-server:/tmp/wled-finder-fixtures /tmp/
+WLED_FINDER_FIXTURES=/tmp/wled-finder-fixtures python3 -B \
+  data/plugins/inventree_wled_locator_plus/tests/browser_finder.py
 ```
 
-Check JavaScript syntax:
+Dashboard/panel exporters and browser scripts follow the same pattern. These
+fixture checks do not prove physical controller/network behaviour; live hardware
+tests require a specifically authorized action. Test results belong to the run,
+not a permanently maintained milestone counter.
 
-```bash
-node --check /home/denys/inventree/inventree-data/plugins/inventree_wled_locator_plus/static/admin_settings.js
-node --check /home/denys/inventree/inventree-data/plugins/inventree_wled_locator_plus/static/panel_common.js
-node --check /home/denys/inventree/inventree-data/plugins/inventree_wled_locator_plus/static/locator_actions.js
-node --check /home/denys/inventree/inventree-data/plugins/inventree_wled_locator_plus/static/locator_panel.js
-node --check /home/denys/inventree/inventree-data/plugins/inventree_wled_locator_plus/static/stock_item_panel.js
-node --check /home/denys/inventree/inventree-data/plugins/inventree_wled_locator_plus/static/stock_location_indicator_panel.js
-```
+For authorized source deployment, restart server/worker to load Python changes.
+Finder/dashboard scripts/styles are inline: refresh their pages. Native panels
+and Plugin Configuration use collected static assets; startup updates normally
+collect them in this deployment. If collection is needed explicitly, run
+`docker compose exec -T inventree-server invoke static`, then hard-refresh the
+browser. This task collects application/plugin assets, without compiling a
+frontend by default. Documentation-only edits need none of these actions.
 
-After plugin code changes, restart:
+Transfer the whole `data/plugins/inventree_wled_locator_plus/` folder, excluding
+`__pycache__`, into the destination's configured plugin directory. Include this
+guide as handoff documentation, activate the plugin, load/collect its assets and
+verify setup. Code transfer alone does not carry controller settings or location
+mappings: they follow a database migration or must be configured in the new
+database.
 
-```bash
-cd /home/denys/inventree
-docker compose restart inventree-server inventree-worker
-```
+## Planned voice integration
 
-Do not run live WLED state-changing tests unless the user approves that specific action.
+Voice capture, transcription, spoken-number/request interpretation and general
+structured parameter filters are not implemented. The proposed flow is browser
+recording → authenticated addon backend → local speech service → editable text
+and interpreted requests → existing finder/preview/explicit Locate.
 
-## Next Work
-
-Recommended next steps:
-
-1. Prepare transfer validation.
-   Package the plugin folder, install it on a separate InvenTree instance, confirm the plugin loads, then verify controller setup and dashboard rendering. This proves the copy-paste deployment model before adding larger features.
-
-2. Add focused regression checks.
-   Keep them lightweight. Useful targets are mapping metadata parsing, dashboard row generation, LED display conversion, controller validation, and locate planning. Avoid introducing a full test framework unless approved.
-
-3. Design LLM integration.
-   The preferred safe model is for the LLM or voice layer to talk only to InvenTree APIs, not directly to WLED, the database, or plugin code. The LLM should search for candidate Parts, StockItems, or StockLocations, present or confirm the best match, then call InvenTree's locate API for `wled-locator-plus`.
-
-   Example target flow:
-
-   ```text
-   Voice: "Find 10k resistor"
-   Speech-to-text: converts voice to text
-   LLM/search layer: searches InvenTree for matching Part or StockItem
-   Confirmation: user confirms the intended result when ambiguous
-   InvenTree API: calls locate for the selected item or location
-   Plugin: clears all configured WLED controllers, then lights the mapped LEDs
-   ```
-
-   n8n can simplify orchestration, but a small custom API service is also viable. Either approach should keep credentials outside the LLM prompt and restrict the LLM to search and locate actions.
-
-4. Improve dashboard refresh behavior after bulk edits.
-   Current selected-row actions update the visible table immediately. A later refinement could refresh LED map colors and controller counts without a full page reload.
+Whisper is a pretrained speech recognition model. Speaches and whisper.cpp server
+are alternative ways to host it. A separate conversational LLM is optional; speech
+recognition alone does not query inventory or interpret every parameter. Choose
+the service/model through actual component-value/identifier tests before full
+integration. Local models can transcribe offline after initial downloads; the
+browser still needs network access to InvenTree. No speech service has been
+introduced by the addon changes documented here.

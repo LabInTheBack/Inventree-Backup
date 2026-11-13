@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Location indicators · InvenTree</title>
+  <style>$styles</style>
+</head>
+<body>
+  <main class="dashboard">
+    <header class="page-header">
+      <div>
+        <p class="eyebrow">InvenTree · WLED Locator Plus</p>
+        <h1>Location indicators</h1>
+        <p class="intro">Connect your drawers and boxes to the LEDs that help you find them.</p>
+      </div>
+      <nav aria-label="Related pages">
+        <a href="/web/">InvenTree</a>
+        <a href="$finder_url">Part finder</a>
+        <button type="button" class="secondary" data-off>All off</button>
+      </nav>
+    </header>
+
+    <div class="summary" aria-label="Location summary" data-summary></div>
+    <div class="view-switch" role="group" aria-label="Dashboard view">
+      <button type="button" data-view="locations" aria-pressed="true">Locations</button>
+      <button type="button" data-view="tools" aria-pressed="false">Controller tools</button>
+    </div>
+    <p class="status" role="status" aria-live="polite" data-status></p>
+    <button type="button" class="secondary" data-retry hidden>Refresh dashboard</button>
+
+    <section class="card" data-locations aria-labelledby="locations-heading">
+      <div class="section-heading">
+        <div><h2 id="locations-heading">Drawers &amp; boxes</h2><p class="muted">Search locations or the parts currently stored in them.</p></div>
+        <span class="muted" data-total></span>
+      </div>
+      <form class="filters" data-filter-form>
+        <label>Search<input name="q" type="search" maxlength="200" placeholder="Location, part name, or ID"></label>
+        <label>Storage area<select name="root"><option value="">All areas</option></select></label>
+        <label>Controller<select name="controller"><option value="">All controllers</option></select></label>
+        <label>Mapping<select name="state">
+          <option value="all">All mappings</option><option value="mapped">Mapped</option>
+          <option value="unmapped">Unmapped</option><option value="shared">Shared LEDs</option>
+          <option value="invalid">Needs correction</option><option value="needs-led">Stock needs mapping</option>
+        </select></label>
+        <button type="submit">Search</button>
+      </form>
+      <div class="filter-extra"><label>LED number<input type="number" min="1" step="1" name="led" data-led-filter placeholder="Any LED"></label><button type="button" class="text-button" data-reset>Reset filters</button></div>
+      <div class="selection-bar">
+        <span><strong data-selected-count>0</strong> selected on this page</span>
+        <div><button type="button" class="secondary" data-locate-selected disabled>Locate selected</button><button type="button" data-edit-selected disabled>Edit mapping</button></div>
+      </div>
+      <p class="scroll-hint muted">Scroll the table sideways to see mappings and actions.</p>
+      <div class="table-wrap" data-table-region aria-busy="true" tabindex="0" role="region" aria-label="Location mappings table">
+        <table>
+          <thead><tr><th class="check"><input type="checkbox" data-select-all aria-label="Select all locations on this page"></th><th>Location</th><th>Stored parts</th><th>LED mapping</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody data-rows><tr><td colspan="6" class="empty">Loading locations…</td></tr></tbody>
+        </table>
+      </div>
+      <div class="pagination"><button type="button" class="secondary" data-page="previous" disabled>Previous</button><span class="muted" data-page-label></span><button type="button" class="secondary" data-page="next" disabled>Next</button></div>
+      <p class="footnote">Part counts show distinct parts with physical in-stock records at each location. Stock records are counted separately; these numbers are not item quantities. Shared LEDs are supported.</p>
+    </section>
+
+    <section class="card" data-tools hidden aria-labelledby="tools-heading">
+      <div class="section-heading"><div><h2 id="tools-heading">Controller tools</h2><p class="muted">Inspect saved LED assignments and test a physical LED.</p></div></div>
+      <p class="footnote">Add, sync, or edit controllers in <a href="/web/settings/admin/plugin/">Plugin Configuration</a> → WLED Locator Plus. Usage below comes from saved mappings; it does not indicate live connectivity.</p>
+      <label class="tool-controller">Controller<select data-tool-controller></select></label>
+      <p class="controller-summary" data-controller-summary></p>
+      <div class="legend"><span><i class="legend-used"></i>Mapped</span><span><i class="legend-shared"></i>Shared</span><span><i></i>Free</span></div>
+      <div class="led-grid" data-led-grid></div>
+      <div class="pagination"><button type="button" class="secondary" data-led-page="previous" disabled>Previous LEDs</button><span class="muted" data-led-page-label></span><button type="button" class="secondary" data-led-page="next" disabled>Next LEDs</button></div>
+      <div class="led-detail" data-led-detail><p class="muted">Choose an LED to see its assigned locations.</p></div>
+      <form class="test-form" data-test-form><label>LED number to test<input type="number" min="1" step="1" data-test-led required></label><button type="submit">Test LED</button><p class="muted">Testing clears the current locator lights, then lights this LED.</p></form>
+    </section>
+    <noscript><p class="card">Enable JavaScript to manage location indicators.</p></noscript>
+  </main>
+
+  <dialog data-editor aria-labelledby="editor-heading">
+    <div class="editor-head"><div><p class="eyebrow">Location mapping</p><h2 id="editor-heading">Edit mapping</h2></div><button type="button" class="secondary" data-close-editor>Close</button></div>
+    <p class="muted" data-editor-description></p>
+    <form data-editor-form>
+      <input type="hidden" name="csrfmiddlewaretoken" value="$csrf_token">
+      <div class="editor-fields">
+        <label>Assignment<select name="mode"><option value="sequential">Sequential LEDs</option><option value="same">Same LED(s) for every location</option><option value="remove">Remove mapping</option></select></label>
+        <label data-assignment-field>Controller<select name="controller" required></select></label>
+        <label data-assignment-field>LED number(s)<input name="leds" type="text" inputmode="numeric" placeholder="15 or 15,16,17" required></label>
+      </div>
+      <p class="footnote" data-mode-help>For several locations, enter one starting LED. Locations are assigned in the order shown in the review.</p>
+      <button type="submit">Review changes</button>
+    </form>
+    <p class="status" role="status" aria-live="polite" data-editor-status></p>
+    <section data-review hidden aria-labelledby="review-heading">
+      <h3 id="review-heading">Review before saving</h3>
+      <div class="table-wrap"><table><thead><tr><th>Location</th><th>Current</th><th>New</th></tr></thead><tbody data-review-rows></tbody></table></div>
+      <div class="sharing-note" data-sharing-note></div>
+      <p class="footnote">Saving changes LED assignments. It does not move stock or light LEDs.</p>
+      <button type="button" data-save>Save mappings</button>
+    </section>
+  </dialog>
+  $config
+  <script>$script</script>
+</body>
+</html>

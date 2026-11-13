@@ -3,17 +3,51 @@
 from __future__ import annotations
 
 import json
+from functools import wraps
 
+from django.core.exceptions import RequestDataTooBig
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.urls import path
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
 
 from build.models import Build
 from part.models import Part
 from stock.models import StockItem, StockLocation
 
+from .finder import SelectionNotLocatable
+from .dashboard import (
+    DashboardConflict,
+    build_dashboard,
+    locate_dashboard_locations,
+    positive_integer,
+    preview_mapping,
+    save_mapping,
+    validate_saved_index,
+)
+from .finder_page import render_finder_page
+from .locking import LocatorBusyError
+from .operations import scoped_operation
 from .page import render_index_page
 from .wled import WledRequestError
+
+
+def native_post(method):
+    """Protect native-panel mutations while keeping their existing URL/results."""
+    @method_decorator(csrf_protect)
+    @wraps(method)
+    def wrapped(self, request, *args, **kwargs):
+        action = method.__name__.replace("_", "-")
+        permission_error = self.require_superuser(request, action)
+        if permission_error:
+            return permission_error
+        if request.method != "POST":
+            response = self.json_error(action, "POST required", status=405)
+            response["Allow"] = "POST"
+            return response
+        return method(self, request, *args, **kwargs)
+    return wrapped
 
 
 class PluginViews:
@@ -26,6 +60,8 @@ class PluginViews:
         """Return plugin URL patterns."""
         return [
             path("", self.index, name="index"),
+            path("dashboard/data/", self.dashboard_data, name="dashboard-data"),
+            path("dashboard/action/", self.dashboard_action, name="dashboard-action"),
             path("status/", self.status, name="status"),
             path("controllers/", self.controllers, name="controllers"),
             path("controllers/sync/", self.sync_controller, name="sync-controller"),
@@ -70,9 +106,15 @@ class PluginViews:
             path("locate/stock-item/<int:item_id>/", self.locate_stock_item, name="locate-stock-item"),
             path("locate/part/<int:part_id>/", self.locate_part, name="locate-part"),
             path("locate/build/<int:build_id>/", self.locate_build, name="locate-build"),
+            path("preview/location/<int:location_id>/", self.preview_location, name="preview-location"),
             path("preview/stock-item/<int:item_id>/", self.preview_stock_item, name="preview-stock-item"),
             path("preview/part/<int:part_id>/", self.preview_part, name="preview-part"),
             path("preview/build/<int:build_id>/", self.preview_build, name="preview-build"),
+            path("finder/search/", self.finder_search, name="finder-search"),
+            path("finder/", self.finder_page, name="finder-page"),
+            path("finder/preview/", self.finder_preview, name="finder-preview"),
+            path("finder/locate/", self.finder_locate, name="finder-locate"),
+            path("finder/off/", self.finder_off, name="finder-off"),
         ]
 
     def require_superuser(self, request, action: str = "permission"):
@@ -84,10 +126,92 @@ class PluginViews:
 
     def json_error(self, action: str, error: Exception | str, status: int = 500, **extra):
         """Return a consistent JSON error response."""
-        return JsonResponse(
+        busy = isinstance(error, LocatorBusyError) or error.__class__.__name__ == LocatorBusyError.__name__
+        if busy:
+            status = 503
+            extra["code"] = "locator_busy"
+        response = JsonResponse(
             {"success": False, "action": action, **extra, "error": str(error)},
             status=status,
         )
+        if busy:
+            response["Retry-After"] = "1"
+        return response
+
+    def json_request(self, request, action, callback):
+        """Keep the new JSON API bounded, authenticated, and POST-only."""
+        permission_error = self.require_superuser(request, action)
+        if permission_error:
+            return permission_error
+        if request.method != "POST":
+            response = self.json_error(action, "POST required", status=405)
+            response["Allow"] = "POST"
+            return response
+        if request.content_type != "application/json":
+            return self.json_error(action, "Content-Type must be application/json", status=415)
+        try:
+            if len(request.body) > 65536:
+                return self.json_error(action, "Request body must not exceed 64 KiB", status=413)
+            payload = json.loads(request.body.decode("utf-8"))
+            if not isinstance(payload, dict):
+                raise ValueError("Request body must be a JSON object")
+            result = callback(payload)
+            return JsonResponse({"success": True, "action": action, **result})
+        except SelectionNotLocatable as exc:
+            return self.json_error(action, exc, status=409, code="selection_not_locatable", preview=exc.plan)
+        except DashboardConflict as exc:
+            return self.json_error(action, exc, status=409, code="mapping_changed")
+        except RequestDataTooBig:
+            return self.json_error(action, "Request body must not exceed 64 KiB", status=413)
+        except ValueError as exc:
+            return self.json_error(action, exc, status=400)
+        except Exception as exc:
+            if self.is_wled_request_error(exc):
+                return self.json_error(action, exc, status=502, last_request=self.plugin.get_last_wled_request())
+            return self.json_error(action, exc)
+
+    @scoped_operation
+    @method_decorator(ensure_csrf_cookie)
+    def finder_page(self, request):
+        """Open the typed part finder without loading stock or contacting WLED."""
+        permission_error = self.require_superuser(request, "finder-page")
+        if permission_error:
+            return permission_error
+        if request.method not in ("GET", "HEAD"):
+            response = self.json_error("finder-page", "GET required", status=405)
+            response["Allow"] = "GET, HEAD"
+            return response
+        return render_finder_page(request)
+
+    @scoped_operation
+    @method_decorator(csrf_protect)
+    def finder_search(self, request):
+        """Return candidates and physical availability for separate part queries."""
+        return self.json_request(request, "finder-search", lambda payload: self.plugin.search_parts(
+            payload.get("queries"), limit=payload.get("limit", 5), cursor=payload.get("cursor"),
+        ))
+
+    @scoped_operation
+    @method_decorator(csrf_protect)
+    def finder_preview(self, request):
+        """Preview explicitly selected parts without contacting controllers."""
+        return self.json_request(request, "finder-preview", lambda payload: self.plugin.preview_parts(
+            payload.get("part_ids"),
+        ))
+
+    @scoped_operation
+    @method_decorator(csrf_protect)
+    def finder_locate(self, request):
+        """Resolve selected IDs again, then execute their combined target plan."""
+        return self.json_request(request, "finder-locate", lambda payload: self.plugin.locate_parts(
+            payload.get("part_ids"),
+        ))
+
+    @scoped_operation
+    @method_decorator(csrf_protect)
+    def finder_off(self, request):
+        """Clear the locator system from the typed finder with a CSRF-protected POST."""
+        return self.json_request(request, "finder-off", lambda payload: {"wled": self.plugin.off()})
 
     def request_payload(self, request) -> dict:
         """Return request data from JSON or form-encoded input."""
@@ -182,17 +306,19 @@ class PluginViews:
 
     def parse_leds_path(self, leds: str) -> list[int]:
         """Return unique zero-based LED indexes from a comma-separated URL path."""
+        raw = str(leds or "")
+        if len(raw) > 4096 or len(raw.split(",")) > 512:
+            raise ValueError("Enter at most 512 LED numbers")
         values = []
 
-        for item in str(leds or "").split(","):
+        for item in raw.split(","):
             item = item.strip()
             if not item:
                 continue
 
-            try:
-                led = int(item)
-            except ValueError as exc:
-                raise ValueError(f"Invalid LED index: {item}") from exc
+            if not item.isascii() or not item.isdigit():
+                raise ValueError("LED numbers must be whole, non-negative indexes")
+            led = int(item)
 
             if led not in values:
                 values.append(led)
@@ -202,68 +328,68 @@ class PluginViews:
 
         return values
 
+    @scoped_operation
+    @method_decorator(ensure_csrf_cookie)
     def index(self, request):
-        """Render the simple WLED Locator Plus plugin page."""
+        """Render the dashboard shell without inventory or controller access."""
         permission_error = self.require_superuser(request, "index")
         if permission_error:
             return permission_error
+        if request.method not in {"GET", "HEAD"}:
+            response = self.json_error("index", "GET required", status=405)
+            response["Allow"] = "GET, HEAD"
+            return response
+        return render_index_page(self.plugin, request=request)
 
+    @scoped_operation
+    def dashboard_data(self, request):
+        """Read the dashboard using saved configuration only."""
+        permission_error = self.require_superuser(request, "dashboard-data")
+        if permission_error:
+            return permission_error
+        if request.method != "GET":
+            response = self.json_error("dashboard-data", "GET required", status=405)
+            response["Allow"] = "GET"
+            return response
         try:
-            message = self.run_page_action(request)
-            return render_index_page(self.plugin, request=request, message=message)
+            response = JsonResponse({"success": True, **build_dashboard(self.plugin, request.GET)})
+            response["Cache-Control"] = "no-store"
+            return response
+        except ValueError as exc:
+            return self.json_error("dashboard-data", exc, status=400)
         except Exception as exc:
-            return render_index_page(self.plugin, request=request, error=str(exc))
+            return self.json_error("dashboard-data", exc)
 
-    def run_page_action(self, request) -> dict | None:
-        """Run a simple action from the plugin page query parameters."""
-        action = request.GET.get("action", "").strip()
+    @scoped_operation
+    @method_decorator(csrf_protect)
+    def dashboard_action(self, request):
+        """Dashboard edits and hardware actions require an explicit JSON POST."""
+        return self.json_request(request, "dashboard-action", self.run_dashboard_action)
 
-        if not action:
-            return None
+    def run_dashboard_action(self, payload):
+        command = payload.get("command")
+        if command == "preview":
+            review, _ = preview_mapping(self.plugin, payload)
+            return {"review": review}
+        if command == "save":
+            return save_mapping(self.plugin, payload)
+        if command == "off":
+            return {"wled": self.plugin.off()}
+        if command == "locate":
+            return locate_dashboard_locations(self.plugin, payload)
+        if command == "test":
+            controller = payload.get("controller")
+            if not isinstance(controller, str) or not controller:
+                raise ValueError("Choose a controller")
+            led = positive_integer(payload.get("led"), "LED number")
+            validate_saved_index(self.plugin.wled(), led - 1, controller)
+            with self.plugin.wled().execution():
+                self.plugin.clear_all_controllers()
+                return {"wled": self.plugin.set_led(led - 1, controller)}
+        raise ValueError("Unknown dashboard action")
 
-        if action == "off":
-            return {"label": "Off", "result": self.plugin.off()}
-
-        if action == "test":
-            controller = request.GET.get("controller", "").strip() or None
-            if request.GET.get("led_display", "").strip():
-                led = int(request.GET.get("led_display", "")) - 1
-            else:
-                led = int(request.GET.get("led", ""))
-            led = self.plugin.validate_led_index(led, controller)
-            selected_controller = self.plugin.get_wled_controller(controller)
-            self.plugin.clear_all_controllers()
-            return {
-                "label": f"Test {selected_controller['label']} LED {led}",
-                "result": self.plugin.set_led(led, selected_controller["label"]),
-            }
-
-        if action == "locate":
-            location_id = int(request.GET.get("location_id", ""))
-            location = get_object_or_404(StockLocation, pk=location_id)
-            return {"label": f"Locate location {location_id}", "result": self.plugin.locate_location(location)}
-
-        if action == "locate_multi":
-            location_ids = self.plugin.parse_location_ids(request.GET.get("ids", ""))
-            return {"label": "Locate multiple locations", "result": self.plugin.locate_locations(location_ids)}
-
-        if action == "locate_stock_item":
-            item_id = int(request.GET.get("item_id", ""))
-            item = get_object_or_404(StockItem.objects.select_related("part", "location"), pk=item_id)
-            return {"label": f"Locate stock item {item_id}", "result": self.plugin.locate_stock_item_object(item)}
-
-        if action == "locate_part":
-            part_id = int(request.GET.get("part_id", ""))
-            part = get_object_or_404(Part, pk=part_id)
-            return {"label": f"Locate part {part_id}", "result": self.plugin.locate_part_object(part)}
-
-        if action == "locate_build":
-            build_id = int(request.GET.get("build_id", ""))
-            build = get_object_or_404(Build, pk=build_id)
-            return {"label": f"Locate build {build_id}", "result": self.plugin.locate_build_object(build)}
-
-        raise ValueError(f"Unknown action: {action}")
-
+    @scoped_operation
+    @native_post
     def off(self, request):
         """Clear all WLED LEDs."""
         permission_error = self.require_superuser(request, "off")
@@ -287,6 +413,7 @@ class PluginViews:
                 )
             return self.json_error("off", exc)
 
+    @scoped_operation
     def status(self, request):
         """Return current WLED Locator Plus configuration status."""
         permission_error = self.require_superuser(request, "status")
@@ -298,6 +425,7 @@ class PluginViews:
         except Exception as exc:
             return self.json_error("status", exc)
 
+    @scoped_operation
     def controllers(self, request):
         """Return configured WLED controller records for Plugin Configuration."""
         permission_error = self.require_superuser(request, "controllers")
@@ -309,6 +437,7 @@ class PluginViews:
         except Exception as exc:
             return self.json_error("controllers", exc)
 
+    @scoped_operation
     def controller_settings(self, request):
         """Return or update non-controller options for Plugin Configuration."""
         permission_error = self.require_superuser(request, "controller-settings")
@@ -341,6 +470,7 @@ class PluginViews:
         except Exception as exc:
             return self.json_error("controller-settings", exc, status=400)
 
+    @scoped_operation
     def controller_mappings(self, request):
         """Return WLED StockLocation mapping summary for Plugin Configuration."""
         permission_error = self.require_superuser(request, "controller-mappings")
@@ -360,6 +490,7 @@ class PluginViews:
         except Exception as exc:
             return self.json_error("controller-mappings", exc)
 
+    @scoped_operation
     def reassign_mappings(self, request):
         """Reassign StockLocation mappings to another controller without lighting LEDs."""
         permission_error = self.require_superuser(request, "reassign-mappings")
@@ -387,6 +518,7 @@ class PluginViews:
         except Exception as exc:
             return self.json_error("reassign-mappings", exc)
 
+    @scoped_operation
     def clear_mappings(self, request):
         """Clear StockLocation WLED mapping metadata after explicit confirmation."""
         permission_error = self.require_superuser(request, "clear-mappings")
@@ -418,6 +550,7 @@ class PluginViews:
         except Exception as exc:
             return self.json_error("clear-mappings", exc)
 
+    @scoped_operation
     def sync_controller(self, request):
         """Sync one controller from WLED /json/info and save it."""
         permission_error = self.require_superuser(request, "sync-controller")
@@ -461,6 +594,7 @@ class PluginViews:
                 )
             return self.json_error("sync-controller", exc)
 
+    @scoped_operation
     def save_controller(self, request):
         """Save one WLED controller from manual input."""
         permission_error = self.require_superuser(request, "save-controller")
@@ -489,6 +623,7 @@ class PluginViews:
         except Exception as exc:
             return self.json_error("save-controller", exc)
 
+    @scoped_operation
     def delete_controller(self, request):
         """Delete one configured WLED controller."""
         permission_error = self.require_superuser(request, "delete-controller")
@@ -511,18 +646,22 @@ class PluginViews:
         except Exception as exc:
             return self.json_error("delete-controller", exc)
 
+    @scoped_operation
     def test_led(self, request, led: int):
         """Clear all LEDs and light one test LED."""
         return self.test_led_for_controller(request, led, controller=None)
 
+    @scoped_operation
     def test_led_controller(self, request, controller: str, led: int):
         """Clear and light one LED on a selected controller."""
         return self.test_led_for_controller(request, led, controller=controller)
 
+    @scoped_operation
     def test_leds(self, request, leds: str):
         """Clear all LEDs and light multiple test LEDs."""
         return self.test_leds_for_controller(request, leds, controller=None)
 
+    @scoped_operation
     def test_leds_controller(self, request, controller: str, leds: str):
         """Clear and light multiple LEDs on a selected controller."""
         return self.test_leds_for_controller(request, leds, controller=controller)
@@ -531,6 +670,7 @@ class PluginViews:
         """Clear all LEDs and light one test LED."""
         return self.test_leds_for_controller(request, str(led), controller=controller)
 
+    @native_post
     def test_leds_for_controller(self, request, leds: str, controller: str | None):
         """Clear all LEDs and light one or more test LEDs."""
         permission_error = self.require_superuser(request, "test")
@@ -543,8 +683,9 @@ class PluginViews:
                 for led in self.parse_leds_path(leds)
             ]
             selected_controller = self.plugin.get_wled_controller(controller)
-            self.plugin.clear_all_controllers()
-            result = self.plugin.set_leds(led_values, selected_controller["label"])
+            with self.plugin.wled().execution():
+                self.plugin.clear_all_controllers()
+                result = self.plugin.set_leds(led_values, selected_controller["label"])
             return JsonResponse({
                 "success": True,
                 "action": "test",
@@ -582,18 +723,23 @@ class PluginViews:
                 )
             return self.json_error("test", exc, controller=controller, leds=leds)
 
+    @scoped_operation
     def register_location_led(self, request, location_id: int, led: int):
         """Register a StockLocation to a WLED LED index."""
         return self.register_location_indicator(request, location_id, led, controller=None)
 
+    @scoped_operation
     def register_location_indicator(self, request, location_id: int, led: int, controller: str | None = None):
         """Register a StockLocation to a WLED controller and LED index."""
         return self.register_location_indicators(request, location_id, str(led), controller=controller)
 
+    @scoped_operation
     def register_location_leds(self, request, location_id: int, leds: str):
         """Register a StockLocation to multiple WLED LED indexes."""
         return self.register_location_indicators(request, location_id, leds, controller=None)
 
+    @scoped_operation
+    @native_post
     def register_location_indicators(self, request, location_id: int, leds: str, controller: str | None = None):
         """Register a StockLocation to a WLED controller and one or more LED indexes."""
         permission_error = self.require_superuser(request, "register-location-led")
@@ -634,6 +780,8 @@ class PluginViews:
         except Exception as exc:
             return self.json_error("register-location-led", exc, location_id=location_id, controller=controller, leds=leds)
 
+    @scoped_operation
+    @native_post
     def clear_location_indicator(self, request, location_id: int):
         """Remove WLED mapping metadata from a StockLocation."""
         permission_error = self.require_superuser(request, "clear-location-indicator")
@@ -666,6 +814,8 @@ class PluginViews:
         except Exception as exc:
             return self.json_error("clear-location-indicator", exc, location_id=location_id)
 
+    @scoped_operation
+    @native_post
     def locate_location(self, request, location_id: int):
         """Locate a StockLocation by lighting its mapped WLED LED."""
         permission_error = self.require_superuser(request, "locate-location")
@@ -706,6 +856,8 @@ class PluginViews:
                 )
             return self.json_error("locate-location", exc, location_id=location_id)
 
+    @scoped_operation
+    @native_post
     def locate_stock_item(self, request, item_id: int):
         """Locate a StockItem by lighting its StockLocation LED."""
         permission_error = self.require_superuser(request, "locate-stock-item")
@@ -743,6 +895,8 @@ class PluginViews:
                 )
             return self.json_error("locate-stock-item", exc, item_id=item_id)
 
+    @scoped_operation
+    @native_post
     def locate_part(self, request, part_id: int):
         """Locate a Part by lighting LEDs for available StockItems."""
         permission_error = self.require_superuser(request, "locate-part")
@@ -780,6 +934,8 @@ class PluginViews:
                 )
             return self.json_error("locate-part", exc, part_id=part_id)
 
+    @scoped_operation
+    @native_post
     def locate_build(self, request, build_id: int):
         """Locate a Build by lighting LEDs for allocated StockItems."""
         permission_error = self.require_superuser(request, "locate-build")
@@ -817,6 +973,35 @@ class PluginViews:
                 )
             return self.json_error("locate-build", exc, build_id=build_id)
 
+    @scoped_operation
+    def preview_location(self, request, location_id: int):
+        """Refresh a location mapping and readiness without changing LEDs."""
+        permission_error = self.require_superuser(request, "preview-location")
+        if permission_error:
+            return permission_error
+        if request.method != "GET":
+            response = self.json_error("preview-location", "GET required", status=405)
+            response["Allow"] = "GET"
+            return response
+        try:
+            location = StockLocation.objects.get(pk=location_id)
+        except StockLocation.DoesNotExist:
+            return self.json_error("preview-location", "StockLocation not found", status=404)
+        try:
+            result = {"location": self.plugin.get_location_info(location), "has_children": not location.is_leaf_node(),
+                      "child_count": location.get_descendant_count(), "can_locate": False, "reason": "", "leds": [], "indicators": []}
+            try:
+                plan = self.plugin.locator().get_location_led_plan(location)
+                result.update(plan, can_locate=bool(plan["indicators"]))
+            except ValueError as exc:
+                result["reason"] = str(exc)
+            response = JsonResponse({"success": True, "action": "preview-location", **result})
+            response["Cache-Control"] = "no-store"
+            return response
+        except Exception as exc:
+            return self.json_error("preview-location", exc)
+
+    @scoped_operation
     def preview_stock_item(self, request, item_id: int):
         """Return the mapped StockLocation and LED for a StockItem without lighting LEDs."""
         permission_error = self.require_superuser(request, "preview-stock-item")
@@ -830,10 +1015,12 @@ class PluginViews:
 
         try:
             result = self.plugin.preview_stock_item_object(item)
+            result["mapping_editable"] = item.location is not None and item.location.is_leaf_node()
             return JsonResponse({"success": True, "action": "preview-stock-item", **result})
         except Exception as exc:
             return self.json_error("preview-stock-item", exc, item_id=item_id)
 
+    @scoped_operation
     def preview_part(self, request, part_id: int):
         """Return the mapped StockLocations and LEDs for a Part without lighting LEDs."""
         permission_error = self.require_superuser(request, "preview-part")
@@ -851,6 +1038,7 @@ class PluginViews:
         except Exception as exc:
             return self.json_error("preview-part", exc, part_id=part_id)
 
+    @scoped_operation
     def preview_build(self, request, build_id: int):
         """Return the mapped StockLocations and LEDs for a Build without lighting LEDs."""
         permission_error = self.require_superuser(request, "preview-build")
@@ -868,6 +1056,8 @@ class PluginViews:
         except Exception as exc:
             return self.json_error("preview-build", exc, build_id=build_id)
 
+    @scoped_operation
+    @native_post
     def locate_locations(self, request):
         """Locate multiple StockLocations from a comma-separated ids query."""
         permission_error = self.require_superuser(request, "locate-locations")

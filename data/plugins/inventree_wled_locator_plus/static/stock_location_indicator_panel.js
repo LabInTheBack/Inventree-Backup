@@ -4,7 +4,6 @@ import {
     clearMappingUrl,
     actionSummaryHtml,
     compactIndicatorText,
-    displayLed,
     displayLedList,
     escapeHtml,
     getLedValues,
@@ -17,6 +16,10 @@ import {
     registerLedUrl,
     resultStyle,
     runJsonRequest,
+    registerPanel,
+    fetchJson,
+    setControlDisabled,
+    withPanelLoading,
     splitLocationPath,
     testLedUrl,
 } from "./panel_common.js";
@@ -39,7 +42,7 @@ function renderStockLocationLocator(target, data, options) {
     const testUrlBase = context.test_url_base || "/plugin/wled-locator-plus/test/";
     const testControllerUrlBase = context.test_controller_url_base || "/plugin/wled-locator-plus/test/";
     const pluginPageUrl = context.plugin_page_url || "/plugin/wled-locator-plus/";
-    const maxLed = Number.isInteger(context.max_led) ? context.max_led : 58;
+    const maxLed = Number.isInteger(context.max_led) ? context.max_led : -1;
     const controllers = Array.isArray(context.controllers) ? context.controllers : [];
     const hasChildren = Boolean(context.has_children);
     const childCount = Number.isInteger(context.child_count) ? context.child_count : 0;
@@ -61,11 +64,12 @@ function renderStockLocationLocator(target, data, options) {
                 ${escapeHtml(options.description)}
             </p>
             <p data-current-mapping style="font-weight: 600; margin: 0;">
-                ${currentLedText}
+                ${escapeHtml(currentLedText)}
             </p>
 
+            <button type="button" data-wled-retry-preview hidden>Retry preview</button>
             <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
-                <button type="button" data-wled-locate style="${buttonStyle("#2364aa")}">
+                <button type="button" data-wled-locate disabled style="${buttonStyle("#2364aa")}">
                     Locate This Location
                 </button>
                 ${openDashboardButtonHtml()}
@@ -77,6 +81,7 @@ function renderStockLocationLocator(target, data, options) {
         </div>
     `;
 
+    registerPanel(target, context);
     const locateButton = target.querySelector("[data-wled-locate]");
     const testButton = target.querySelector("[data-wled-test]");
     const clearButton = target.querySelector("[data-wled-clear]");
@@ -86,67 +91,57 @@ function renderStockLocationLocator(target, data, options) {
 
     bindDashboardButton(target, pluginPageUrl);
 
-    locateButton.addEventListener("click", async () => {
-        await runJsonRequest(locateUrl, locateButton, result, "Locating...", summarizePayload);
-    });
-
-    if (!form) {
-        return;
+    const retry = target.querySelector("[data-wled-retry-preview]");
+    async function refreshPreview() {
+        return withPanelLoading(async () => {
+            setControlDisabled(locateButton, true);
+            if (form) for (const element of form.querySelectorAll("input, select, button")) setControlDisabled(element, true);
+            retry.hidden = true;
+            try {
+                if (!context.preview_url) throw new Error("Location preview URL is not configured. Refresh the page.");
+                const response = await fetchJson(context.preview_url);
+                if (typeof response.can_locate !== "boolean" || !response.location) throw new Error("Invalid location preview. Refresh the page.");
+                currentMapping.textContent = response.has_children
+                    ? `Parent location: ${response.child_count} child location(s)`
+                    : response.leds?.length ? `Current mapping: ${compactIndicatorText(response)}` : `No usable LED mapping${response.reason ? `: ${response.reason}` : ""}`;
+                setControlDisabled(locateButton, !response.can_locate);
+                locateButton.title = response.can_locate ? "" : response.reason || "This location cannot be located yet.";
+                if (form) {
+                    const editable = !response.has_children && controllers.some((item) => item.reachable !== false);
+                    for (const element of form.querySelectorAll("input, select, button")) setControlDisabled(element, !editable);
+                    form.querySelector("input[name='led']").value = displayLedList(response.leds || []);
+                    const select = form.querySelector("select[name='controller']");
+                    const label = response.controller || context.default_controller || "";
+                    select.value = [...select.options].some((option) => option.value === label) ? label : "";
+                }
+            } catch (error) {
+                currentMapping.textContent = `Preview request failed: ${error.message}`;
+                retry.hidden = false;
+                throw error;
+            }
+        });
     }
-
-    testButton.addEventListener("click", async () => {
-        const leds = getLedValues(form, maxLed);
-        if (!leds.length) {
-            result.textContent = ledInputMessage(form, maxLed);
-            return;
-        }
-
-        await runJsonRequest(testLedUrl(testControllerUrlBase || testUrlBase, form, leds), testButton, result, "Testing LED...", summarizePayload);
-    });
-
-    clearButton.addEventListener("click", async () => {
-        if (!window.confirm("Clear this StockLocation external indicator mapping?")) {
-            return;
-        }
-
-        const payload = await runJsonRequest(
-            clearMappingUrl(context.stock_location_id),
-            clearButton,
-            result,
-            "Clearing mapping...",
-            summarizePayload
-        );
-
-        if (payload?.success) {
-            form.querySelector("input[name='led']").value = "";
-            currentMapping.textContent = "No LED mapping saved";
-        }
-    });
-
-    form.addEventListener("submit", async (event) => {
-        event.preventDefault();
-
-        const leds = getLedValues(form, maxLed);
-        if (!leds.length) {
-            result.textContent = ledInputMessage(form, maxLed);
-            return;
-        }
-
-        const payload = await runJsonRequest(
-            registerLedUrl({
-                registerUrlBase,
-                registerControllerUrlBase: context.register_controller_url_base,
-            }, null, form, leds),
-            form.querySelector("button[type='submit']"),
-            result,
-            "Saving mapping...",
-            summarizePayload
-        );
-
-        if (payload?.success) {
-            currentMapping.textContent = `Current mapping: ${compactIndicatorText(payload)}`;
-        }
-    });
+    retry.addEventListener("click", () => refreshPreview().catch(() => {}));
+    locateButton.addEventListener("click", () => runJsonRequest(locateUrl, locateButton, result, "Locating...", summarizePayload, {onSuccess: refreshPreview}));
+    if (form) {
+        testButton.addEventListener("click", () => {
+            const leds = getLedValues(form, maxLed);
+            if (!leds.length) { result.textContent = ledInputMessage(form, maxLed); return; }
+            return runJsonRequest(testLedUrl(testControllerUrlBase || testUrlBase, form, leds), testButton, result, "Testing LED...", summarizePayload);
+        });
+        clearButton.addEventListener("click", () => {
+            if (!window.confirm("Clear this StockLocation external indicator mapping?")) return;
+            return runJsonRequest(clearMappingUrl(context.stock_location_id), clearButton, result, "Clearing mapping...", summarizePayload, {onSuccess: refreshPreview});
+        });
+        form.addEventListener("submit", (event) => {
+            event.preventDefault();
+            const leds = getLedValues(form, maxLed);
+            if (!leds.length) { result.textContent = ledInputMessage(form, maxLed); return; }
+            return runJsonRequest(registerLedUrl({registerUrlBase, registerControllerUrlBase: context.register_controller_url_base}, null, form, leds),
+                form.querySelector("button[type='submit']"), result, "Saving mapping...", summarizePayload, {onSuccess: refreshPreview});
+        });
+    }
+    refreshPreview().catch(() => {});
 }
 
 function summarizePayload(payload) {
