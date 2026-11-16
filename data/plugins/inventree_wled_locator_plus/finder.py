@@ -6,7 +6,8 @@ from collections import defaultdict
 from decimal import Decimal
 
 from django.core import signing
-from django.db.models import BooleanField, Case, Exists, IntegerField, OuterRef, Q, Value, When
+from django.db.models import BooleanField, Case, Exists, F, IntegerField, OuterRef, Q, Value, When, Window
+from django.db.models.functions import RowNumber
 
 from common.models import Parameter
 from company.models import ManufacturerPart
@@ -16,6 +17,7 @@ from stock.models import StockItem
 from .locator import LocatorService
 from .planning import IndicatorCollection
 from .search_terms import SPECS, parse_value_search, unit_aliases
+from .component_types import component_type
 
 
 MAX_QUERIES = 20
@@ -25,6 +27,15 @@ MAX_MATCHES = 10
 CURSOR_SALT = "wled-locator-plus.finder-page"
 CURSOR_MAX_AGE = 3600
 MAX_SELECTED_PARTS = 100
+MAX_DISPLAY_SPECS = 4
+SPEC_PRIORITY = (
+    "Resistance", "Capacitance", "Inductance", "Voltage Rating", "Voltage",
+    "Current Rating", "Drain to Source Voltage", "Rated Torque", "Torque",
+    "Material", "Thread Size", "Inner Diameter", "Cross Section", "Cross-Section",
+    "Outer Diameter", "Diameter", "Length", "Width", "Height", "Thickness",
+    "Package / Case", "Mounting Type", "Supply Voltage Min", "Supply Voltage Max",
+    "Tolerance", "Power Rating",
+)
 
 
 def part_image_urls(part) -> dict:
@@ -89,6 +100,16 @@ def validate_queries(queries, limit):
     return normalized, limit
 
 
+def validate_component_queries(indexes, count):
+    if indexes is None:
+        return set()
+    if (not isinstance(indexes, list) or len(indexes) > count
+            or any(type(index) is not int or not 0 <= index < count for index in indexes)
+            or len(set(indexes)) != len(indexes)):
+        raise ValueError("component_queries must contain unique indexes of interpreted search lines")
+    return set(indexes)
+
+
 class FinderService:
     """Resolve candidates and selections; hardware execution is a separate step."""
 
@@ -122,19 +143,33 @@ class FinderService:
         result = explicit_text | (bare_text & family) | Q(Exists(parameter))
         return result & family if value.require_family else result
 
-    def _find_candidates(self, query: str, limit: int, after=None):
+    @staticmethod
+    def _category_match(paths):
+        categories = Q()
+        for path in paths:
+            categories |= Q(category__pathstring__iexact=path) | Q(category__pathstring__istartswith=path + "/")
+        return categories
+
+    def _find_candidates(self, query: str, limit: int, after=None, scope=None):
         parts = Part.objects.filter(active=True, virtual=False)
+        if scope:
+            parts = parts.filter(self._category_match(scope.paths))
+            if scope.excluded_paths:
+                parts = parts.exclude(self._category_match(scope.excluded_paths))
         value = parse_value_search(query)
         if value:
             normalized = self._value_match(value)
-            for term in value.terms:
+            terms = value.terms
+            if scope and scope.name == "variable resistor":
+                terms = tuple(term for term in terms if term.casefold() not in {"variable", "adjustable"})
+            for term in terms:
                 normalized &= self._text_match(term)
             # Exact identifiers remain searchable without treating their fragments
             # as measurements. Case matters here because M and m are different.
             exact_mpn = ManufacturerPart.objects.filter(part_id=OuterRef("pk"), MPN__exact=query)
             parts = parts.filter(normalized | Q(IPN__exact=query) | Q(name__exact=query) | Q(Exists(exact_mpn)))
         else:
-            for term in query.split():
+            for term in (scope.remaining if scope else query).split():
                 parts = parts.filter(self._text_match(term))
         exact_mpn = ManufacturerPart.objects.filter(part_id=OuterRef("pk"), MPN__iexact=query)
         parts = parts.annotate(_finder_rank=Case(
@@ -152,7 +187,7 @@ class FinderService:
         return list(parts.order_by("_finder_rank", "name", "pk")[:limit + 1])
 
     @staticmethod
-    def _read_cursor(cursor, queries):
+    def _read_cursor(cursor, queries, scoped=False):
         if cursor is None:
             return None
         if not isinstance(cursor, str) or not cursor or len(cursor) > 4096 or len(queries) != 1:
@@ -161,7 +196,8 @@ class FinderService:
             page = signing.loads(cursor, salt=CURSOR_SALT, max_age=CURSOR_MAX_AGE)
         except signing.BadSignature as exc:
             raise ValueError("This search page expired or is invalid. Search again to refresh the matches.") from exc
-        if (not isinstance(page, dict) or page.get("query") != queries[0] or type(page.get("rank")) is not int
+        if (not isinstance(page, dict) or page.get("query") != queries[0] or page.get("component", False) is not scoped
+                or type(page.get("rank")) is not int
                 or not 0 <= page["rank"] <= 3 or not isinstance(page.get("name"), str) or len(page["name"]) > 1024
                 or type(page.get("id")) is not int or not 1 <= page["id"] <= (1 << 63) - 1):
             raise ValueError("This search page does not match the requested query. Search again.")
@@ -202,19 +238,52 @@ class FinderService:
             "locations": list(locations.values()),
         }
 
-    def search(self, queries, *, limit=5, cursor=None) -> dict:
+    @staticmethod
+    def _specifications(part_ids):
+        """Read at most four parameters per matched part in one bounded query."""
+        result = defaultdict(list)
+        if not part_ids:
+            return result
+        priority = Case(*(When(template__name__iexact=name, then=Value(index))
+                          for index, name in enumerate(SPEC_PRIORITY)),
+                        default=Value(len(SPEC_PRIORITY)), output_field=IntegerField())
+        rows = Parameter.objects.filter(
+            model_type__app_label="part", model_type__model="part", model_id__in=part_ids,
+        ).exclude(data__regex=r"^\s*$").annotate(
+            _finder_spec_row=Window(RowNumber(), partition_by=F("model_id"),
+                                    order_by=[priority.asc(), F("template__name").asc(), F("pk").asc()]),
+        ).filter(_finder_spec_row__lte=MAX_DISPLAY_SPECS).order_by(
+            "model_id", priority, "template__name", "pk",
+        ).values("model_id", "template__name", "template__units", "data")
+        def bounded(value, limit):
+            value = str(value or "").strip()
+            return value if len(value) <= limit else value[:limit] + "…"
+        for row in rows:
+            result[row["model_id"]].append({
+                "name": bounded(row["template__name"], 80),
+                "value": bounded(row["data"], 160),
+                "units": bounded(row["template__units"], 32),
+            })
+        return result
+
+    def search(self, queries, *, limit=5, cursor=None, component_queries=None) -> dict:
         queries, limit = validate_queries(queries, limit)
-        after = self._read_cursor(cursor, queries)
+        component_queries = validate_component_queries(component_queries, len(queries))
+        after = self._read_cursor(cursor, queries, 0 in component_queries)
         searches, unique_parts, cached_queries = [], {}, {}
-        for query in queries:
-            if query not in cached_queries:
-                cached_queries[query] = self._find_candidates(query, limit, after)
-            found = cached_queries[query]
+        for index, query in enumerate(queries):
+            scoped = index in component_queries
+            scope = component_type(query) if scoped else None
+            key = (query, scoped)
+            if key not in cached_queries:
+                cached_queries[key] = self._find_candidates(query, limit, after, scope)
+            found = cached_queries[key]
             matches = found[:limit]
             for part in matches:
                 unique_parts[part.pk] = part
-            searches.append((query, matches, len(found) > limit))
+            searches.append((query, matches, len(found) > limit, scoped, scope))
 
+        specifications = self._specifications(unique_parts)
         stocks = defaultdict(list)
         if unique_parts:
             # Use InvenTree's native availability filter; no stock consumption,
@@ -228,22 +297,25 @@ class FinderService:
                 "part": {
                     **self.locator.get_part_info(part), "IPN": part.IPN or "", "description": part.description,
                     **part_image_urls(part),
+                    "specifications": specifications[pk],
                 },
                 "availability": self._availability(stocks[pk]),
             }
             for pk, part in unique_parts.items()
         }
         results = []
-        for query, matches, has_more in searches:
+        for query, matches, has_more, scoped, scope in searches:
             results.append({
                 "query": query,
                 "matches": [candidates[part.pk] for part in matches],
                 "has_more": has_more,
-                "next_cursor": signing.dumps({"query": query, "rank": matches[-1]._finder_rank,
+                "next_cursor": signing.dumps({"query": query, "component": scoped, "rank": matches[-1]._finder_rank,
                                               "name": matches[-1].name, "id": matches[-1].pk}, salt=CURSOR_SALT) if has_more else None,
                 "value_match": ({"quantity": value.kind, "value": str(value.value), "unit": SPECS[value.kind]["symbol"],
                                  "display": value.display} if (value := parse_value_search(query)) else None),
                 "match_status": "multiple" if after or len(matches) > 1 or has_more else "single" if matches else "no_match",
+                "component_query": scoped,
+                "type_filter": scope.public() if scope else None,
             })
         return {"results": results, "summary": {
             "queries": len(results), "matched_queries": sum(bool(row["matches"]) for row in results),
@@ -271,6 +343,7 @@ class FinderService:
                 missing.append(pk)
                 continue
             preview = self.locator.preview_part_stock(parts[pk], (item for item in stocks[pk] if item.location_id))
+            preview["part"].update(part_image_urls(parts[pk]))
             targets.extend(preview["indicators"])
             location_ids.update(row["location"]["id"] for row in preview["locations"])
             previews.append({

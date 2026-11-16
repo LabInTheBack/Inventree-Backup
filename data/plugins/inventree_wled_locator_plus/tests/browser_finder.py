@@ -19,7 +19,7 @@ from playwright.async_api import Error as PlaywrightError, async_playwright, exp
 
 
 ROOT = Path(os.environ.get("WLED_FINDER_FIXTURES", "/tmp/wled-finder-fixtures"))
-ORIGIN = "http://finder.test"
+ORIGIN = "https://finder.test"
 PREFIX = "/plugin/wled-locator-plus/finder/"
 STORAGE_KEY = "wled-locator-plus.finder.v1.user.1"
 
@@ -41,6 +41,8 @@ class FinderBrowserTests(unittest.IsolatedAsyncioTestCase):
         self.delay_first_preview = False
         self.first_preview_requested = asyncio.Event()
         self.search_mode = "success"
+        self.search_delay = 0
+        self.search_started = asyncio.Event()
         self.more_error_once = False
         self.more_delay = 0
         self.more_requested = asyncio.Event()
@@ -70,6 +72,7 @@ class FinderBrowserTests(unittest.IsolatedAsyncioTestCase):
             first["part"]["name"] = '<img src=x onerror="window.injected=1">'
             first["part"]["full_name"] = first["part"]["name"]
             first["part"]["description"] = '<script>window.injected=1</script>'
+            first["part"]["specifications"] = [{"name": "<img src=x>", "value": '<script>window.injected=1</script>', "units": "<svg>"}]
             first["part"]["thumbnail_url"] = "javascript:window.injected=1"
             first["part"]["image_url"] = "data:image/svg+xml,<svg onload='window.injected=1'/>"
             return [first]
@@ -83,6 +86,14 @@ class FinderBrowserTests(unittest.IsolatedAsyncioTestCase):
 
     async def route(self, route):
         url = route.request.url
+        if url == ORIGIN + "/static/plugins/wled-locator-plus/finder_entry.js":
+            return await route.fulfill(content_type="text/javascript", body=(ROOT / "finder_entry.js").read_text())
+        if url == ORIGIN + "/entry-test/":
+            return await route.fulfill(content_type="text/html", body='''
+                <div id="entry"></div><script type="module">
+                import {renderFinderEntry} from "/static/plugins/wled-locator-plus/finder_entry.js";
+                renderFinderEntry(document.getElementById("entry"), {});
+                </script>''')
         if url == ORIGIN + PREFIX:
             html = (ROOT / "index.html").read_text()
             if self.user_id != 1:
@@ -98,7 +109,9 @@ class FinderBrowserTests(unittest.IsolatedAsyncioTestCase):
             return
         if url.startswith(ORIGIN + "/media/finder-fixture/"):
             self.image_requests.append(url)
-            if self.image_mode == "all_broken" or (self.image_mode == "thumbnail_broken" and url.endswith(".thumbnail.png")):
+            if (self.image_mode == "all_broken"
+                    or self.image_mode == "thumbnail_broken" and url.endswith(".thumbnail.png")
+                    or self.image_mode == "original_broken" and not url.endswith(".thumbnail.png")):
                 await route.fulfill(status=404)
             else:
                 await route.fulfill(content_type="image/svg+xml", body='<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128"><rect x="20" y="28" width="88" height="72" rx="6" fill="#364657"/><path d="M10 40h10m-10 16h10m-10 16h10m-10 16h10m88-48h10m-10 16h10m-10 16h10m-10 16h10" stroke="#8b9cad" stroke-width="5"/><text x="64" y="72" font-size="22" fill="white" text-anchor="middle">IC</text></svg>')
@@ -116,6 +129,9 @@ class FinderBrowserTests(unittest.IsolatedAsyncioTestCase):
             await route.fulfill(status=400, json={"success": False})
             return
         if endpoint == "search":
+            self.search_started.set()
+            if self.search_delay:
+                await asyncio.sleep(self.search_delay)
             if self.search_mode == "html":
                 await route.fulfill(content_type="text/html", body="<h1>Sign in</h1>")
                 return
@@ -151,6 +167,16 @@ class FinderBrowserTests(unittest.IsolatedAsyncioTestCase):
                 else:
                     results.append({"query": query, "matches": self.matches(query), "has_more": False,
                                     "value_match": {"display": "10 kΩ"} if query == "10 kiloohm" else None})
+            if "component_queries" in body and self.search_mode != "no_types":
+                from test_component_types import types as component_types
+                for index, result in enumerate(results):
+                    scoped = index in body["component_queries"]
+                    scope = component_types.component_type(result["query"]) if scoped else None
+                    result.update(component_query=scoped, type_filter=scope.public() if scope else None)
+                    # An explicit empty-family fixture; SQL category matching is
+                    # verified separately in the disposable database tests.
+                    if scope and scope.name == "battery":
+                        result["matches"] = []
             try:
                 await route.fulfill(json={"success": True, "results": results, "summary": {"matched_queries": sum(bool(row["matches"]) for row in results)}})
             except PlaywrightError:
@@ -228,6 +254,119 @@ class FinderBrowserTests(unittest.IsolatedAsyncioTestCase):
         await self.search("unavailable")
         for button in await self.page.locator("[data-part-toggle]").all():
             await expect(button).to_be_disabled()
+
+    async def test_clear_searches_keeps_selection_and_persists_empty_search(self):
+        await self.search("NE555")
+        await self.add("NE555")
+        await expect(self.page.locator("[data-locate]")).to_be_enabled()
+        await self.page.get_by_role("button", name="Clear searches", exact=True).click()
+        await expect(self.page.locator("#part-queries")).to_have_value("")
+        await expect(self.page.locator(".query-group")).to_have_count(0)
+        await expect(self.page.locator("[data-selected-count]")).to_have_text("1")
+        await expect(self.page.locator("[data-locate]")).to_be_enabled()
+        await self.page.reload()
+        await expect(self.page.locator("#part-queries")).to_have_value("")
+        await expect(self.page.locator("[data-selected-count]")).to_have_text("1")
+        await expect(self.page.locator("[data-locate]")).to_be_enabled()
+        self.assertFalse(any(endpoint in ("locate", "off") for endpoint, _, _ in self.requests))
+
+    async def test_clear_aborts_search_and_discards_late_results(self):
+        self.search_delay = .6
+        await self.page.locator("#part-queries").fill("NE555")
+        await self.page.locator("[data-search-button]").click()
+        await asyncio.wait_for(self.search_started.wait(), timeout=5)
+        await self.page.locator("[data-clear-searches]").click()
+        self.search_delay = 0
+        await self.search("10k resistor")
+        await self.page.wait_for_timeout(750)
+        await expect(self.page.locator(".query-heading h3")).to_have_text("10k resistor")
+        await expect(self.page.locator("[data-part-toggle='1']")).to_have_count(0)
+
+    async def test_mobile_selection_collapses_and_reopens_on_desktop(self):
+        await self.search("NE555")
+        await self.add("NE555")
+        await self.page.set_viewport_size({"width": 390, "height": 844})
+        summary = self.page.locator("[data-selection-details] > summary")
+        await summary.click()
+        await expect(self.page.locator("[data-selected-parts]")).to_be_hidden()
+        await expect(self.page.locator("[data-locate]")).to_be_enabled()
+        await self.page.set_viewport_size({"width": 1280, "height": 960})
+        await expect(self.page.locator("[data-selected-parts]")).to_be_visible()
+
+    async def test_finder_route_bridge_and_dashboard_shortcut_open_finder(self):
+        await self.page.evaluate('''async () => {
+          const entry = await import('/static/plugins/wled-locator-plus/finder_entry.js');
+          if (entry.renderFinderEntry.length !== 2 || entry.renderFinderShortcut.length !== 2) throw new Error('Invalid DOM entrypoint');
+          const target = document.createElement('div'); document.body.append(target);
+          entry.renderFinderShortcut(target, {});
+        }''')
+        await self.page.get_by_role("link", name="Open Part Finder").click()
+        await expect(self.page).to_have_url(ORIGIN + PREFIX)
+        await self.page.goto(ORIGIN + "/entry-test/")
+        await expect(self.page).to_have_url(ORIGIN + PREFIX)
+        self.assertEqual(self.requests, [])
+
+    async def test_part_links_and_stored_specifications_do_not_change_selection(self):
+        await self.search("NE555")
+        link = self.page.locator(".match h3 a")
+        await expect(link).to_have_attribute("href", "/web/part/1/")
+        await expect(link).to_have_attribute("target", "_blank")
+        await expect(link).to_have_attribute("rel", "noopener")
+        await expect(self.page.locator(".part-specifications dt")).to_have_text(["Voltage (V)", "Package / Case"])
+        await expect(self.page.locator(".part-specifications dd")).to_have_text(["5", "DIP-8"])
+        await expect(self.page.locator("[data-selected-count]")).to_have_text("0")
+        self.assertEqual([entry[0] for entry in self.requests], ["search"])
+
+    async def test_image_preview_loads_original_on_demand_and_escape_restores_focus(self):
+        await self.search("NE555")
+        trigger = self.page.get_by_role("button", name="View image of NE555", exact=True)
+        await expect(trigger.locator("img")).to_be_visible()
+        self.assertFalse(any(url.endswith("chip.png") for url in self.image_requests))
+        await trigger.click()
+        dialog = self.page.locator("[data-image-dialog]")
+        await expect(dialog).to_be_visible()
+        await expect(dialog.locator("img")).to_have_attribute("src", ORIGIN + "/media/finder-fixture/chip.png")
+        await expect(self.page.locator("[data-image-status]")).to_have_text("")
+        await self.page.keyboard.press("Escape")
+        await expect(dialog).to_be_hidden()
+        await expect(trigger).to_be_focused()
+        await expect(self.page.locator("[data-image-content] img")).to_have_count(0)
+        await expect(self.page.locator("[data-selected-count]")).to_have_text("0")
+        self.assertEqual([entry[0] for entry in self.requests], ["search"])
+
+    async def test_image_preview_falls_back_and_reports_missing_images(self):
+        self.image_mode = "original_broken"
+        await self.search("NE555")
+        await self.page.get_by_role("button", name="View image of NE555", exact=True).click()
+        await expect(self.page.locator("[data-image-status]")).to_contain_text("showing the thumbnail")
+        await self.page.get_by_role("button", name="Close image preview", exact=True).click()
+        self.image_mode = "all_broken"
+        await self.search("NE555")
+        await self.page.get_by_role("button", name="View image of NE555", exact=True).click()
+        await expect(self.page.locator("[data-image-status]")).to_contain_text("could not be loaded")
+        await expect(self.page.locator("[data-image-content] img")).to_have_count(0)
+        await self.page.get_by_role("button", name="Close image preview", exact=True).click()
+
+    async def test_availability_labels_separate_no_stock_and_location_setup(self):
+        await self.search("unavailable")
+        await expect(self.page.locator(".match .availability-label")).to_have_text(["No stock", "Indicator setup needed"])
+        self.fixture["candidates"][1]["availability"]["locations"][0]["location"] = None
+        await self.search("unavailable")
+        await expect(self.page.locator(".match .availability-label")).to_have_text(["No stock", "Stock location missing"])
+        self.assertFalse(any(endpoint in ("locate", "off") for endpoint, _, _ in self.requests))
+
+    async def test_image_preview_fits_phone_and_long_part_name(self):
+        name = "NE555 " + "LongPackage" * 20
+        self.fixture["candidates"][0]["part"].update(name=name, full_name=name)
+        await self.page.set_viewport_size({"width": 390, "height": 844})
+        await self.search("NE555")
+        await self.page.get_by_role("button", name=f"View image of {name}", exact=True).click()
+        await expect(self.page.locator("[data-image-status]")).to_have_text("")
+        bounds = await self.page.locator("[data-image-dialog]").bounding_box()
+        self.assertGreaterEqual(bounds["x"], 0)
+        self.assertLessEqual(bounds["x"] + bounds["width"], 390)
+        self.assertTrue(await self.page.evaluate("document.documentElement.scrollWidth <= innerWidth"))
+        await self.page.keyboard.press("Escape")
 
     async def test_selection_survives_searches_and_locates_then_turns_off(self):
         await self.search("NE555")

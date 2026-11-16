@@ -23,6 +23,41 @@ consult Compose before moving files. The external proxy/network configuration is
 outside this repository. The application uses Django, PostgreSQL and Redis;
 `data/data.json` and root SQL dumps are exports, not live inventory.
 
+## Local Ollama service
+
+Ollama runs in the existing Debian VM, independently of InvenTree's Compose
+project. Its files are in `/home/den/server-data/ollama/`: `compose.yaml`, service
+notes in `README.md`, and persistent `data/` mounted at `/root/.ollama`.
+Ollama manages downloaded models under `data/models/`; Docker manages the image
+and container layers in its own storage. InvenTree's database/media backups do
+not include the sibling service files. Preserve its Compose file and data
+separately, or download the same model again when restoring.
+
+The Compose service translates the [official CPU Docker command](https://docs.ollama.com/docker).
+Local choices are `restart: unless-stopped`, a `./data` bind mount instead of a
+named volume, localhost-only port `11434`, and joining the existing external
+`inventree_default` network so the addon can use `http://ollama:11434`.
+The external network must exist before starting Ollama. There are no build,
+GPU, custom environment, resource-limit or proxy settings. No InvenTree or
+Speaches Compose changes are required. The image is upstream `ollama/ollama`
+(implicit `latest`); an ordinary `up -d` does not itself pull a new image.
+
+```bash
+cd /home/den/server-data/ollama
+docker compose ps
+curl --fail --show-error http://127.0.0.1:11434/api/version
+docker compose exec ollama ollama list
+docker compose logs --tail=50 ollama
+```
+
+Installed model: `qwen3.5:2b-q4_K_M`. Model parsing is English-only at the addon
+boundary. It uses CPU inference; no GPU passthrough is configured. This image
+contains sizable runtime libraries even for CPU use, so check free disk space
+before updates. The model and other services share the VM's RAM and CPU.
+Disabling the parser URL in Plugin Configuration restores standard grouping
+without stopping transcription or typed search. See the [addon guide](wled-locator-plus.md#local-model-request-grouping)
+for review, fallback and parameter-filtering limits.
+
 ## Inspect status
 
 ```bash

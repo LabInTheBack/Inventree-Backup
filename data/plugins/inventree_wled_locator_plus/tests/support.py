@@ -38,6 +38,8 @@ class Query:
         return self
 
     def annotate(self, **expressions):
+        if not self.rows:
+            return self
         if set(expressions) != {"_wled_finder_in_stock"}:
             raise NotImplementedError(expressions)
         # Plain fixtures already carry their availability. The real SQL
@@ -62,6 +64,10 @@ class Query:
 
     def order_by(self, *fields):
         return Query(sorted(self.rows, key=lambda row: tuple(attribute(row, key) for key in fields)))
+
+    def exclude(self, **filters):
+        excluded = self.filter(**filters).rows
+        return Query(row for row in self.rows if row not in excluded)
 
     def values(self, *fields):
         return [{key: attribute(row, key) for key in fields} for row in self.rows]
@@ -126,6 +132,7 @@ class Part:
 
     def __init__(self, pk, name):
         self.pk, self.name, self.full_name = pk, name, name
+        self.assembly = False
 
     def __str__(self):
         return self.name
@@ -155,6 +162,10 @@ class Parameter:
     objects = Query()
 
 
+class BomItem:
+    objects = Query()
+
+
 class ManufacturerPart:
     objects = Query()
 
@@ -162,6 +173,10 @@ class ManufacturerPart:
 class Build:
     def __init__(self, pk, part):
         self.pk, self.part, self.reference, self.title = pk, part, f"BO-{pk}", "Test build"
+
+
+class BuildLine:
+    objects = Query()
 
 
 def module(name, **attributes):
@@ -175,8 +190,8 @@ def load_modules(package="locator_under_test", directory=PLUGIN_DIR):
     package_module = module(package, __path__=[str(directory)])
     dependencies = {
         package: package_module,
-        "build.models": module("build.models", Build=Build, BuildItem=BuildItem),
-        "part.models": module("part.models", Part=Part),
+        "build.models": module("build.models", Build=Build, BuildItem=BuildItem, BuildLine=BuildLine),
+        "part.models": module("part.models", Part=Part, BomItem=BomItem),
         "stock.models": module("stock.models", StockItem=StockItem, StockLocation=Location),
     }
     with patch.dict(sys.modules, dependencies):

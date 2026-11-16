@@ -10,11 +10,14 @@ from django.urls import path
 from django.utils.translation import gettext_lazy as _
 
 from build.models import Build
+from part.models import Part
 from plugin import InvenTreePlugin
 from plugin.mixins import LocateMixin, UrlsMixin, UserInterfaceMixin
 from stock.models import StockLocation
 
 from .constants import BASE_URL, INTERNAL_SETTING_KEYS, PLUGIN_SLUG
+from .bom import BomService
+from .build_components import BuildComponentService
 from .finder import FinderService
 from .locator import LocatorService
 from .operations import current_operation, scoped_operation
@@ -177,6 +180,8 @@ class WledLocatorPlus(
             "save_url": self.plugin_url("controllers/save/"),
             "delete_url": self.plugin_url("controllers/delete/"),
             "settings_url": self.plugin_url("controllers/settings/"),
+            "speech_settings_url": self.plugin_url("speech/settings/"),
+            "interpreter_settings_url": self.plugin_url("interpreter/settings/"),
             "mappings_url": self.plugin_url("controllers/mappings/"),
             "reassign_url": self.plugin_url("controllers/mappings/reassign/"),
             "clear_mappings_url": self.plugin_url("controllers/mappings/clear/"),
@@ -184,7 +189,14 @@ class WledLocatorPlus(
 
     def get_ui_spotlight_actions(self, request, context, **kwargs):
         """Return external indicator quick actions for the InvenTree spotlight menu."""
-        return [
+        finder_actions = [{
+            "key": "wled-part-finder",
+            "title": _("Part Finder"),
+            "description": _("Search for several parts by text or voice"),
+            "icon": "ti:search:outline",
+            "source": self.plugin_static_file("finder_entry.js:openFinder"),
+        }] if getattr(getattr(request, "user", None), "is_superuser", False) else []
+        return finder_actions + [
             {
                 "key": "wled-locator-open-page",
                 "title": _("Open External Indicator"),
@@ -215,8 +227,38 @@ class WledLocatorPlus(
         ]
 
     def get_ui_navigation_items(self, request, context, **kwargs):
-        """Return custom InvenTree navigation entries for the plugin page."""
-        return []
+        """Open Finder through a registered frontend route, including SPA clicks."""
+        if not getattr(getattr(request, "user", None), "is_superuser", False):
+            return []
+        return [{
+            "key": "wled-part-finder",
+            "title": _("Part Finder"),
+            "icon": "ti:search:outline",
+            "options": {"url": "plugin/wled-locator-plus/finder/"},
+        }]
+
+    def get_ui_routes(self, request, context, **kwargs):
+        """Bridge native frontend navigation to the standalone Finder page."""
+        if not getattr(getattr(request, "user", None), "is_superuser", False):
+            return []
+        return [{
+            "key": "wled-part-finder-route",
+            "title": _("Part Finder"),
+            "source": self.plugin_static_file("finder_entry.js:renderFinderEntry"),
+            "options": {"path": "finder"},
+        }]
+
+    def get_ui_dashboard_items(self, request, context, **kwargs):
+        """Offer an optional Finder shortcut without changing a user's layout."""
+        if not getattr(getattr(request, "user", None), "is_superuser", False):
+            return []
+        return [{
+            "key": "wled-part-finder",
+            "title": _("Part Finder"),
+            "description": _("Find parts by text or voice and light their locations"),
+            "source": self.plugin_static_file("finder_entry.js:renderFinderShortcut"),
+            "options": {"width": 4, "height": 2},
+        }]
 
     def plugin_url(self, path_suffix: str = "") -> str:
         """Return an absolute backend URL under the plugin URL prefix."""
@@ -256,6 +298,10 @@ class WledLocatorPlus(
             "context": context,
         }
 
+    def picking_storage_key(self, request, kind, pk):
+        user_id = getattr(getattr(request, "user", None), "pk", None)
+        return f"wled-locator-plus.picking.v1.user.{user_id}.{kind}.{pk}" if type(user_id) is int and user_id > 0 else None
+
     @scoped_operation
     def get_ui_panels(self, request, context, **kwargs):
         """Return native InvenTree UI panels for supported object pages."""
@@ -269,7 +315,7 @@ class WledLocatorPlus(
             return []
 
         if target_model == "part":
-            return [self.panel_definition(
+            panels = [self.panel_definition(
                 key="assign-external-indicator-part",
                 title=_("Assign External Indicator"),
                 description=_("Locate this part using mapped external indicators"),
@@ -281,6 +327,23 @@ class WledLocatorPlus(
                     preview_url=self.plugin_url(f"preview/part/{target_id}/"),
                 ),
             )]
+            part = Part.objects.filter(pk=target_id).first()
+            if part and part.assembly:
+                panels.append(self.panel_definition(
+                    key="assembly-components",
+                    title=_("Locate Components"),
+                    description=_("Find stocked BOM components, including nested assemblies"),
+                    source=self.plugin_static_file("bom_panel.js:renderBomPanel"),
+                    context={
+                        "csrf_token": get_token(request) if request is not None else "",
+                        "part_id": target_id,
+                        "picking_storage_key": self.picking_storage_key(request, "part", target_id),
+                        "preview_url": self.plugin_url(f"components/part/{target_id}/preview/"),
+                        "locate_url": self.plugin_url(f"components/part/{target_id}/locate/"),
+                        "off_url": self.plugin_url("finder/off/"),
+                    },
+                ))
+            return panels
 
         if target_model == "build":
             build = Build.objects.filter(pk=target_id).first()
@@ -298,6 +361,19 @@ class WledLocatorPlus(
                     locate_url=self.plugin_url(f"locate/build/{target_id}/"),
                     preview_url=self.plugin_url(f"preview/build/{target_id}/"),
                 ),
+            ), self.panel_definition(
+                key="build-required-components",
+                title=_("Locate Required Components"),
+                description=_("Locate outstanding build requirements and their allocated stock"),
+                source=self.plugin_static_file("bom_panel.js:renderBomPanel"),
+                context={
+                    "csrf_token": get_token(request) if request is not None else "",
+                    "build_id": target_id,
+                    "picking_storage_key": self.picking_storage_key(request, "build", target_id),
+                    "preview_url": self.plugin_url(f"components/build/{target_id}/preview/"),
+                    "locate_url": self.plugin_url(f"components/build/{target_id}/locate/"),
+                    "off_url": self.plugin_url("finder/off/"),
+                },
             )]
 
         if target_model == "stockitem":
@@ -432,8 +508,8 @@ class WledLocatorPlus(
         return current.finder
 
     @scoped_operation
-    def search_parts(self, queries, *, limit=5, cursor=None) -> dict:
-        return self.finder().search(queries, limit=limit, cursor=cursor)
+    def search_parts(self, queries, *, limit=5, cursor=None, component_queries=None) -> dict:
+        return self.finder().search(queries, limit=limit, cursor=cursor, component_queries=component_queries)
 
     @scoped_operation
     def preview_parts(self, part_ids) -> dict:
@@ -442,6 +518,22 @@ class WledLocatorPlus(
     @scoped_operation
     def locate_parts(self, part_ids) -> dict:
         return self.finder().locate(part_ids)
+
+    @scoped_operation
+    def preview_components(self, part_id, payload) -> dict:
+        return BomService(self).preview(part_id, payload)
+
+    @scoped_operation
+    def locate_components(self, part_id, payload) -> dict:
+        return BomService(self).locate(part_id, payload)
+
+    @scoped_operation
+    def preview_build_components(self, build_id, payload) -> dict:
+        return BuildComponentService(self).preview(build_id, payload)
+
+    @scoped_operation
+    def locate_build_components(self, build_id, payload) -> dict:
+        return BuildComponentService(self).locate(build_id, payload)
 
     @scoped_operation
     def get_max_leds(self) -> int:

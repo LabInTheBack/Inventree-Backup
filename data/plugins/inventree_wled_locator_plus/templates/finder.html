@@ -10,41 +10,94 @@
   <main class="finder">
     <header class="page-header">
       <div>
-        <p class="eyebrow">InvenTree · External Indicator</p>
+        <p class="eyebrow">InvenTree / Warehouse</p>
         <h1>Part finder</h1>
         <p class="intro">Search for parts, choose the matches, and light their locations together.</p>
       </div>
       <nav aria-label="Related pages">
-        <a href="/web/">InvenTree</a>
-        <a href="$dashboard_url">Indicator dashboard</a>
+        <a href="/web/">← InvenTree</a>
+        <a href="$dashboard_url">Indicator settings</a>
       </nav>
     </header>
 
     <div class="finder-layout">
       <div class="search-column">
-        <section class="card" aria-labelledby="search-heading">
-          <h2 id="search-heading">What are you looking for?</h2>
+        <section class="card search-card" aria-labelledby="search-heading">
+          <div class="section-header">
+            <h2 id="search-heading">What are you looking for?</h2>
+            <span class="step-label">1 · Search</span>
+          </div>
           <form data-search-form>
             <input type="hidden" name="csrfmiddlewaretoken" value="$csrf_token">
             <label for="part-queries">Parts to find</label>
-            <textarea id="part-queries" name="queries" rows="4" placeholder="NE555&#10;10k resistor&#10;M3 nut" aria-describedby="query-help" required></textarea>
+            <textarea id="part-queries" name="queries" rows="3" placeholder="NE555&#10;10k resistor&#10;M3 nut" aria-describedby="query-help" required></textarea>
             <div class="form-footer">
-              <p id="query-help" class="muted">One part per line, or separate with semicolons. Up to $max_queries searches. Values such as 10kΩ and 100nF are recognized.</p>
-              <button type="submit" data-search-button>Search parts</button>
+              <p id="query-help" class="muted">One part per line or separated with semicolons. Up to $max_queries searches. Ctrl/Cmd + Enter to search.</p>
+              <div class="search-actions">
+                <button type="button" class="text-button" data-clear-searches>Clear searches</button>
+                <button type="submit" data-search-button>Search parts</button>
+              </div>
             </div>
           </form>
+          <div class="voice-capture" data-voice-region>
+            <div class="voice-actions">
+              <button type="button" class="secondary" data-voice-record disabled>Record request</button>
+              <button type="button" class="secondary" data-voice-stop hidden>Stop and transcribe</button>
+              <button type="button" class="text-button" data-voice-cancel hidden>Discard recording</button>
+              <button type="button" class="secondary" data-voice-retry hidden>Retry transcription</button>
+              <span class="muted" data-voice-timer hidden aria-hidden="true"></span>
+              <button type="button" class="text-button" data-voice-paste>Type or paste request</button>
+            </div>
+            <div class="processing-times" aria-live="off">
+              <span data-voice-transcription-time hidden></span>
+              <span data-voice-interpretation-time hidden></span>
+            </div>
+            <p class="status" role="status" aria-live="polite" data-voice-status>Speak an English request or paste a sentence to prepare search lines.</p>
+            <details class="voice-workspace" data-voice-workspace hidden>
+              <summary>Review request and search lines</summary>
+            <div data-voice-review hidden>
+              <div class="review-grid">
+                <div class="request-review">
+              <label for="voice-transcript">Request / transcript</label>
+              <textarea id="voice-transcript" rows="4" maxlength="8192" aria-describedby="voice-help"></textarea>
+              <p id="voice-help" class="muted">Correct the wording here, then interpret again.</p>
+              <button type="button" class="secondary" data-voice-interpret disabled>Interpret request</button>
+                </div>
+              <div class="voice-query-review" data-voice-query-review hidden>
+                <label for="voice-queries">Search lines — review and edit</label>
+                <textarea id="voice-queries" rows="3" maxlength="8192" aria-describedby="voice-query-help"></textarea>
+                <p id="voice-query-help" class="muted">One part per line. Check values and specifications before adding.</p>
+                <ul class="voice-notes" data-voice-notes></ul>
+                <p class="status" role="status" aria-live="polite" data-voice-query-status></p>
+                <button type="button" data-voice-use disabled>Add to parts to find</button>
+              </div>
+              </div>
+            </div>
+            </details>
+            <details class="voice-last" data-voice-last hidden>
+              <summary>Last request and added search lines</summary>
+              <p class="muted">Request / transcript</p>
+              <pre data-voice-last-transcript></pre>
+              <p class="muted">Added search lines</p>
+              <pre data-voice-last-queries></pre>
+            </details>
+          </div>
+          <p class="muted" role="status" aria-live="polite" data-component-status></p>
           <p class="status" role="status" aria-live="polite" data-search-status></p>
-          <p class="muted recovery-status" role="status" aria-live="polite" data-recovery-status>Search text and selected parts are remembered in this browser.</p>
+          <details class="recovery-help"><summary>About this workspace</summary>
+            <p class="muted">Values such as 10kΩ and 100nF are recognized. Interpreted requests can use component-type filters. Review all specifications before selecting parts.</p>
+            <p class="muted recovery-status" role="status" aria-live="polite" data-recovery-status>Search text and selected parts are remembered in this browser.</p>
+          </details>
         </section>
 
         <section aria-labelledby="results-heading" aria-busy="false" data-results-region>
           <div class="section-header">
-            <h2 id="results-heading">Matches</h2>
+            <h2 id="results-heading">Matches <span class="step-label">2 · Choose</span></h2>
             <span class="muted" data-results-count></span>
             <a class="selection-shortcut" href="#selection" data-selection-shortcut hidden>View selected</a>
           </div>
           <div data-results>
-            <p class="empty-state">Enter the parts you need above. You can add matches from several searches to the same selection.</p>
+            <div class="empty-state"><strong>Your matches will appear here</strong><p>Search by part number, name or value. Add the matches you need to your selection.</p></div>
           </div>
         </section>
       </div>
@@ -56,16 +109,29 @@
         </div>
         <p class="status" role="status" aria-live="polite" data-preview-status>Choose parts from the matches.</p>
         <button type="button" class="text-button" data-retry-preview hidden>Retry location check</button>
+        <details class="selection-list" data-selection-details open>
+          <summary>Show / hide selected parts</summary>
         <div data-selected-parts></div>
+        </details>
         <div class="selection-actions">
           <button type="button" data-locate disabled>Locate selected</button>
           <button type="button" class="secondary" data-off>All off</button>
         </div>
+        <p class="muted selection-help">3 · Locate the selected parts together.</p>
         <p class="status action-status" role="status" aria-live="polite" data-action-status></p>
       </aside>
     </div>
     <noscript><p class="card">Enable JavaScript to search and locate parts. Your existing <a href="$dashboard_url">indicator dashboard</a> is still available.</p></noscript>
   </main>
+  <dialog class="image-dialog" data-image-dialog aria-labelledby="part-image-title">
+    <div class="section-header">
+      <h2 id="part-image-title" data-image-title>Part image</h2>
+      <button type="button" class="secondary" data-close-image aria-label="Close image preview">Close</button>
+    </div>
+    <p class="status" role="status" data-image-status></p>
+    <div class="image-content" data-image-content></div>
+    <a data-image-part-link target="_blank" rel="noopener">Open part in InvenTree ↗</a>
+  </dialog>
   $config
   <script>$script</script>
 </body>

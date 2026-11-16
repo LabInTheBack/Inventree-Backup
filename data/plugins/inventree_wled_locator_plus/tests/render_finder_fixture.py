@@ -19,6 +19,8 @@ def render(destination):
         views = case.views.PluginViews(case.plugin)
         response = views.finder_page(case.finder_request(method="GET"))
         (destination / "index.html").write_bytes(response.content)
+        (destination / "finder_entry.js").write_text(
+            (Path(__file__).parent.parent / "static" / "finder_entry.js").read_text())
         previews = {
             ",".join(map(str, ids)): {"success": True, "action": "finder-preview", **case.plugin.preview_parts(ids)}
             for ids in ([1], [2], [1, 2], [2, 1], [1, 999])
@@ -31,6 +33,10 @@ def render(destination):
                     **part["part"], "IPN": "", "description": "Timer IC" if pk == 1 else "10k axial resistor",
                     "image_url": "/media/finder-fixture/chip.png" if pk == 1 else None,
                     "thumbnail_url": "/media/finder-fixture/chip.thumbnail.png" if pk == 1 else None,
+                    "specifications": [
+                        {"name": "Voltage", "value": "5", "units": "V"},
+                        {"name": "Package / Case", "value": "DIP-8", "units": ""},
+                    ] if pk == 1 else [{"name": "Resistance", "value": "10000", "units": "ohms"}],
                 },
                 "availability": part["availability"],
             })

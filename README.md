@@ -50,7 +50,10 @@ safe to delete.
 ## Current scope
 
 Typed combined search, match images, value normalization, selection recovery,
-native locate panels and mapping tools are implemented. Voice recording,
-speech-to-text integration and general parameter filtering are not implemented.
-Whisper hosted locally through Speaches or another speech server is under
-consideration; no service/model choice or deployment is finalized.
+assembly BOM and build requirement highlighting, personal picking checklists, native locate panels and mapping
+tools are implemented. Part Finder also records speech through the local
+Speaches/Whisper service, optionally groups requests with a local Ollama model,
+normalizes a bounded English vocabulary,
+and provides editable search lines for multiple parts with category-based component
+type filtering. General parameter filtering
+and catalogue-aware speech corrections remain planned.

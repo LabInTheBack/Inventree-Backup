@@ -9,6 +9,8 @@ from django.utils.html import escape, json_script
 
 from .constants import BASE_URL
 from .finder import MAX_QUERIES, MAX_QUERY_LENGTH, MAX_QUERY_TERMS, MAX_SELECTED_PARTS
+from .speech import MAX_AUDIO_BYTES, MAX_RECORDING_SECONDS
+from .voice_requests import INTERPRETER_VERSION
 
 
 def render_finder_page(request):
@@ -21,6 +23,11 @@ def render_finder_page(request):
         "preview_url": f"{BASE_URL}finder/preview/",
         "locate_url": f"{BASE_URL}finder/locate/",
         "off_url": f"{BASE_URL}finder/off/",
+        "transcribe_url": f"{BASE_URL}finder/transcribe/",
+        "interpret_url": f"{BASE_URL}finder/interpret/",
+        "interpreter_version": INTERPRETER_VERSION,
+        "max_audio_bytes": MAX_AUDIO_BYTES,
+        "max_recording_seconds": MAX_RECORDING_SECONDS,
         "max_queries": MAX_QUERIES,
         "max_query_length": MAX_QUERY_LENGTH,
         "max_query_terms": MAX_QUERY_TERMS,
@@ -31,7 +38,7 @@ def render_finder_page(request):
         dashboard_url=escape(BASE_URL),
         config=json_script(config, "finder-config"),
         styles=(root / "static" / "finder_page.css").read_text(),
-        script=(root / "static" / "finder_page.js").read_text(),
+        script="\n".join((root / "static" / name).read_text() for name in ("finder_page.js", "finder_voice.js")),
         max_queries=MAX_QUERIES,
     )
     response = HttpResponse(html)

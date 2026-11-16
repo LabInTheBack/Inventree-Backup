@@ -17,6 +17,8 @@ from part.models import Part
 from stock.models import StockItem, StockLocation
 
 from .finder import SelectionNotLocatable
+from .bom import ComponentsNotLocatable
+from .picking import PickingChanged
 from .dashboard import (
     DashboardConflict,
     build_dashboard,
@@ -31,6 +33,8 @@ from .locking import LocatorBusyError
 from .operations import scoped_operation
 from .page import render_index_page
 from .wled import WledRequestError
+from .speech import AUDIO_TYPES, MAX_AUDIO_BYTES, SpeechError, get_config, save_config, transcribe
+from . import request_interpreter
 
 
 def native_post(method):
@@ -111,10 +115,18 @@ class PluginViews:
             path("preview/part/<int:part_id>/", self.preview_part, name="preview-part"),
             path("preview/build/<int:build_id>/", self.preview_build, name="preview-build"),
             path("finder/search/", self.finder_search, name="finder-search"),
+            path("finder/transcribe/", self.finder_transcribe, name="finder-transcribe"),
+            path("finder/interpret/", self.finder_interpret, name="finder-interpret"),
+            path("speech/settings/", self.speech_settings, name="speech-settings"),
+            path("interpreter/settings/", self.interpreter_settings, name="interpreter-settings"),
             path("finder/", self.finder_page, name="finder-page"),
             path("finder/preview/", self.finder_preview, name="finder-preview"),
             path("finder/locate/", self.finder_locate, name="finder-locate"),
             path("finder/off/", self.finder_off, name="finder-off"),
+            path("components/part/<int:part_id>/preview/", self.component_preview, name="component-preview"),
+            path("components/part/<int:part_id>/locate/", self.component_locate, name="component-locate"),
+            path("components/build/<int:build_id>/preview/", self.build_component_preview, name="build-component-preview"),
+            path("components/build/<int:build_id>/locate/", self.build_component_locate, name="build-component-locate"),
         ]
 
     def require_superuser(self, request, action: str = "permission"):
@@ -157,6 +169,10 @@ class PluginViews:
                 raise ValueError("Request body must be a JSON object")
             result = callback(payload)
             return JsonResponse({"success": True, "action": action, **result})
+        except PickingChanged as exc:
+            return self.json_error(action, exc, status=409, code="picking_changed", preview=exc.plan)
+        except ComponentsNotLocatable as exc:
+            return self.json_error(action, exc, status=409, code="components_not_locatable", preview=exc.plan)
         except SelectionNotLocatable as exc:
             return self.json_error(action, exc, status=409, code="selection_not_locatable", preview=exc.plan)
         except DashboardConflict as exc:
@@ -185,10 +201,86 @@ class PluginViews:
 
     @scoped_operation
     @method_decorator(csrf_protect)
+    def finder_transcribe(self, request):
+        """Accept a bounded raw audio body, separate from the existing JSON API."""
+        action = "finder-transcribe"
+        response = self.require_superuser(request, action)
+        if response is None:
+            if request.method != "POST":
+                response = self.json_error(action, "POST required", status=405)
+                response["Allow"] = "POST"
+            else:
+                try:
+                    if request.headers.get("X-Speech-Language") not in (None, "en"):
+                        raise SpeechError("Part Finder voice uses English only. Refresh the page.", 400, "speech_language")
+                    if request.content_type not in AUDIO_TYPES:
+                        raise SpeechError("Unsupported recording format. Try another browser.", 415, "speech_format")
+                    length = request.META.get("CONTENT_LENGTH", "")
+                    if length and (not length.isascii() or not length.isdigit() or len(length) > 20):
+                        raise SpeechError("Invalid recording length.", 400, "speech_size")
+                    if length and int(length) > MAX_AUDIO_BYTES:
+                        raise SpeechError("The recording exceeds 4 MiB. Make a shorter recording.", 413, "speech_size")
+                    audio = request.read(MAX_AUDIO_BYTES + 1)
+                    result = transcribe(self.plugin, audio, request.content_type)
+                    response = JsonResponse({"success": True, "action": action, **result})
+                except SpeechError as exc:
+                    response = self.json_error(action, exc, status=exc.status, code=exc.code)
+                    if exc.code == "speech_busy":
+                        response["Retry-After"] = "2"
+                except (OSError, RequestDataTooBig):
+                    response = self.json_error(action, "Could not read the recording. Try again.", status=400)
+        response["Cache-Control"] = "no-store"
+        return response
+
+    @scoped_operation
+    @method_decorator(csrf_protect)
+    def finder_interpret(self, request):
+        """Prepare reviewed English queries without reading stock or running search."""
+        def prepare(payload):
+            if set(payload) - {"text"}:
+                raise ValueError("Supply English request text only")
+            return request_interpreter.prepare_requests(self.plugin, payload.get("text"))
+        response = self.json_request(request, "finder-interpret", prepare)
+        response["Cache-Control"] = "no-store"
+        return response
+
+    @scoped_operation
+    @method_decorator(csrf_protect)
+    def speech_settings(self, request):
+        """Read/save speech configuration without contacting the speech service."""
+        response = self.require_superuser(request, "speech-settings")
+        if response is None:
+            if request.method == "GET":
+                response = JsonResponse({"success": True, "speech": get_config(self.plugin)})
+            else:
+                response = self.json_request(request, "speech-settings", lambda payload: {
+                    "speech": save_config(self.plugin, payload),
+                })
+        response["Cache-Control"] = "no-store"
+        return response
+
+    @scoped_operation
+    @method_decorator(csrf_protect)
+    def interpreter_settings(self, request):
+        """Read/save the optional local parser without contacting either service."""
+        response = self.require_superuser(request, "interpreter-settings")
+        if response is None:
+            if request.method == "GET":
+                response = JsonResponse({"success": True, "interpreter": request_interpreter.get_config(self.plugin)})
+            else:
+                response = self.json_request(request, "interpreter-settings", lambda payload: {
+                    "interpreter": request_interpreter.save_config(self.plugin, payload),
+                })
+        response["Cache-Control"] = "no-store"
+        return response
+
+    @scoped_operation
+    @method_decorator(csrf_protect)
     def finder_search(self, request):
         """Return candidates and physical availability for separate part queries."""
         return self.json_request(request, "finder-search", lambda payload: self.plugin.search_parts(
             payload.get("queries"), limit=payload.get("limit", 5), cursor=payload.get("cursor"),
+            component_queries=payload.get("component_queries"),
         ))
 
     @scoped_operation
@@ -212,6 +304,34 @@ class PluginViews:
     def finder_off(self, request):
         """Clear the locator system from the typed finder with a CSRF-protected POST."""
         return self.json_request(request, "finder-off", lambda payload: {"wled": self.plugin.off()})
+
+    @scoped_operation
+    @method_decorator(csrf_protect)
+    def component_preview(self, request, part_id):
+        response = self.json_request(request, "component-preview", lambda payload: self.plugin.preview_components(part_id, payload))
+        response["Cache-Control"] = "no-store"
+        return response
+
+    @scoped_operation
+    @method_decorator(csrf_protect)
+    def component_locate(self, request, part_id):
+        response = self.json_request(request, "component-locate", lambda payload: self.plugin.locate_components(part_id, payload))
+        response["Cache-Control"] = "no-store"
+        return response
+
+    @scoped_operation
+    @method_decorator(csrf_protect)
+    def build_component_preview(self, request, build_id):
+        response = self.json_request(request, "build-component-preview", lambda payload: self.plugin.preview_build_components(build_id, payload))
+        response["Cache-Control"] = "no-store"
+        return response
+
+    @scoped_operation
+    @method_decorator(csrf_protect)
+    def build_component_locate(self, request, build_id):
+        response = self.json_request(request, "build-component-locate", lambda payload: self.plugin.locate_build_components(build_id, payload))
+        response["Cache-Control"] = "no-store"
+        return response
 
     def request_payload(self, request) -> dict:
         """Return request data from JSON or form-encoded input."""

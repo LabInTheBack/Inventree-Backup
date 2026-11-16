@@ -50,6 +50,10 @@ export async function withPanelLoading(callback) {
     finally { endRequest(); }
 }
 
+export function panelRequestPending() {
+    return pending > 0;
+}
+
 function cookieToken() {
     const entry = document.cookie.split(";").map((item) => item.trim()).find((item) => item.startsWith("csrftoken="));
     return entry ? decodeURIComponent(entry.slice("csrftoken=".length)) : "";
@@ -66,7 +70,7 @@ export async function fetchJson(url, options = {}) {
     }
     let response;
     try {
-        response = await fetch(url, {credentials: "same-origin", cache: "no-store", method, headers, ...(method === "POST" ? {body: "{}"} : {})});
+        response = await fetch(url, {credentials: "same-origin", cache: "no-store", method, headers, ...(method === "POST" ? {body: JSON.stringify(options.payload || {})} : {})});
     } catch {
         const error = new Error("Could not reach InvenTree. Check the connection before retrying.");
         error.uncertain = method === "POST";
@@ -359,7 +363,7 @@ export function mappingActionHtml(title, payload, component = "") {
 }
 
 export function resultStyle() {
-    return "background: #f7f8f9; border: 1px solid #d8dde2; border-radius: 6px; margin: 0; overflow: auto; padding: 0.75rem;";
+    return `${previewStyle()} color: var(--mantine-color-text, #233044); margin: 0; overflow: auto;`;
 }
 
 function summaryHeaderStyle() {
@@ -371,7 +375,7 @@ function summaryCellStyle() {
 }
 
 export function buttonStyle(background) {
-    return `align-items: center; background: ${background}; border: 0; border-radius: 6px; color: #fff; cursor: pointer; display: inline-flex; justify-content: center; min-height: 2.4rem; padding: 0.45rem 0.75rem; white-space: nowrap;`;
+    return `align-items: center; background: ${background}; border: 1px solid transparent; border-radius: 8px; color: #fff; cursor: pointer; display: inline-flex; font: inherit; font-size: 0.875rem; font-weight: 600; justify-content: center; min-height: 42px; padding: 0.55rem 0.85rem; white-space: nowrap;`;
 }
 
 export function openDashboardButtonHtml(label = "Open Indicator Dashboard") {
@@ -391,7 +395,7 @@ export function bindDashboardButton(container, url = "/plugin/wled-locator-plus/
 }
 
 export function previewStyle() {
-    return "background: #f7f8f9; border: 1px solid #d8dde2; border-radius: 6px; padding: 0.75rem;";
+    return "background: var(--mantine-color-default, #f8fafc); border: 1px solid var(--mantine-color-default-border, #dce3ec); border-radius: 10px; padding: 1rem;";
 }
 
 export function controllerSelectHtml(controllers = [], currentController = "") {

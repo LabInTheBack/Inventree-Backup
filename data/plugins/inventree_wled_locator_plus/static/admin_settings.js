@@ -233,6 +233,30 @@ function mappingTools(payload = {}) {
     `;
 }
 
+function speechForm(speech) {
+    if (!speech) return '<p class="wlp-muted">Speech settings are unavailable. Reload after restarting InvenTree.</p>';
+    return `
+        <form class="wlp-card" data-speech-form>
+            <div>
+                <h3 class="wlp-card-title">Part Finder Voice</h3>
+                <div class="wlp-muted">English transcription through Speaches from the InvenTree server. Leave the service URL blank to disable transcription. Recordings are not saved by the addon.</div>
+            </div>
+            <div class="wlp-options-form">
+                <label class="wlp-field">Speech service URL
+                    <input name="url" type="url" value="${escapeHtml(speech.url)}" placeholder="http://speaches:8000">
+                </label>
+                <label class="wlp-field">Installed model ID
+                    <input name="model" value="${escapeHtml(speech.model)}" required maxlength="200">
+                </label>
+                <div class="wlp-actions">
+                    <button class="wlp-button secondary" type="submit">Save Voice Settings</button>
+                </div>
+            </div>
+            <p class="wlp-muted" data-speech-status role="status" aria-live="polite"></p>
+        </form>
+    `;
+}
+
 function addForm() {
     return `
         <form class="wlp-card wlp-form-add" data-add-form>
@@ -258,6 +282,30 @@ function addForm() {
                     <button class="wlp-button secondary" type="button" data-action="save">Save Manual</button>
                 </div>
             </div>
+        </form>
+    `;
+}
+
+function interpreterForm(interpreter) {
+    if (!interpreter) return '<p class="wlp-muted">Request parser settings are unavailable. Reload after restarting InvenTree.</p>';
+    return `
+        <form class="wlp-card" data-interpreter-form>
+            <div>
+                <h3 class="wlp-card-title">Part Finder Request Parser</h3>
+                <div class="wlp-muted">Use a local Ollama model to group spoken or pasted requests. All search lines remain editable. Leave the URL blank to use the standard parser.</div>
+            </div>
+            <div class="wlp-options-form">
+                <label class="wlp-field">Ollama service URL
+                    <input name="url" type="url" value="${escapeHtml(interpreter.url)}" placeholder="http://ollama:11434">
+                </label>
+                <label class="wlp-field">Installed model ID
+                    <input name="model" value="${escapeHtml(interpreter.model)}" required maxlength="200">
+                </label>
+                <div class="wlp-actions">
+                    <button class="wlp-button secondary" type="submit">Save Parser Settings</button>
+                </div>
+            </div>
+            <p class="wlp-muted" data-interpreter-status role="status" aria-live="polite"></p>
         </form>
     `;
 }
@@ -288,6 +336,8 @@ function render(target, data) {
             </div>
             <div class="wlp-section">
                 ${optionsForm(payload.options || {})}
+                ${speechForm(payload.speech)}
+                ${interpreterForm(payload.interpreter)}
             </div>
             <div class="wlp-section">
                 ${mappingTools(payload)}
@@ -307,7 +357,10 @@ async function loadControllers(target, data) {
         setStatus(target, "Loading controller records...", "working");
         const controllers = await fetchJson(context.controllers_url || "/plugin/wled-locator-plus/controllers/");
         const mappings = await fetchJson(context.mappings_url || "/plugin/wled-locator-plus/controllers/mappings/");
-        state.payload = { ...controllers, mappings: mappings.mappings };
+        // Speech setup failures must not prevent controller maintenance.
+        const speech = await fetchJson(context.speech_settings_url || "/plugin/wled-locator-plus/speech/settings/").catch(() => null);
+        const interpreter = await fetchJson(context.interpreter_settings_url || "/plugin/wled-locator-plus/interpreter/settings/").catch(() => null);
+        state.payload = { ...controllers, mappings: mappings.mappings, speech: speech?.speech, interpreter: interpreter?.interpreter };
         render(target, data);
         setStatus(
             target,
@@ -426,6 +479,46 @@ async function runMappingAction(target, context, container, action) {
 }
 
 function bind(target, context) {
+    target.querySelector("[data-interpreter-form]")?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const form = event.currentTarget;
+        const button = form.querySelector("button");
+        const status = form.querySelector("[data-interpreter-status]");
+        button.disabled = true;
+        status.textContent = "Saving parser settings…";
+        try {
+            const result = await fetchJson(context.interpreter_settings_url || "/plugin/wled-locator-plus/interpreter/settings/", {
+                method: "POST", body: JSON.stringify(Object.fromEntries(new FormData(form))),
+            });
+            target.__wlpState.payload.interpreter = result.interpreter;
+            status.textContent = "Parser settings saved. The next interpretation will use these settings.";
+        } catch (error) {
+            status.textContent = `Could not save parser settings: ${error.message}`;
+        } finally {
+            button.disabled = false;
+        }
+    });
+    target.querySelector("[data-speech-form]")?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const form = event.currentTarget;
+        const button = form.querySelector("button");
+        const status = form.querySelector("[data-speech-status]");
+        button.disabled = true;
+        status.textContent = "Saving voice settings…";
+        try {
+            const values = new FormData(form);
+            const result = await fetchJson(context.speech_settings_url || "/plugin/wled-locator-plus/speech/settings/", {
+                method: "POST",
+                body: JSON.stringify(Object.fromEntries(values)),
+            });
+            target.__wlpState.payload.speech = result.speech;
+            status.textContent = "Voice settings saved. Refresh Part Finder to record a request.";
+        } catch (error) {
+            status.textContent = `Could not save voice settings: ${error.message}`;
+        } finally {
+            button.disabled = false;
+        }
+    });
     target.querySelectorAll("[data-controller-form], [data-add-form]").forEach((form) => {
         form.querySelectorAll("[data-action]").forEach((button) => {
             button.addEventListener("click", () => runAction(target, context, form, button.dataset.action));

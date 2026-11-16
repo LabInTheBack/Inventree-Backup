@@ -16,7 +16,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from support import Build, BuildItem, Location, ManufacturerPart, Parameter, Part, PLUGIN_DIR, StockItem, inventory_fixture, module
+from support import BomItem, Build, BuildItem, BuildLine, Location, ManufacturerPart, Parameter, Part, PLUGIN_DIR, StockItem, inventory_fixture, module
 
 
 @unittest.skipUnless(importlib.util.find_spec("django"), "Django is available in the InvenTree container")
@@ -53,8 +53,8 @@ class FacadeTests(unittest.TestCase):
         self.store = SettingsStore
         dependencies = {
             "locator_facade_test": module("locator_facade_test", __path__=[str(PLUGIN_DIR)]),
-            "build.models": module("build.models", Build=Build, BuildItem=BuildItem),
-            "part.models": module("part.models", Part=Part),
+            "build.models": module("build.models", Build=Build, BuildItem=BuildItem, BuildLine=BuildLine),
+            "part.models": module("part.models", Part=Part, BomItem=BomItem),
             "company.models": module("company.models", ManufacturerPart=ManufacturerPart),
             "common.models": module("common.models", Parameter=Parameter),
             "stock.models": module("stock.models", StockItem=StockItem, StockLocation=Location),
@@ -222,19 +222,30 @@ class FacadeTests(unittest.TestCase):
         self.plugin.search_parts = Mock(return_value={"results": [{"query": "555", "match_status": "multiple", "matches": []}]})
         response = self.views.PluginViews(self.plugin).finder_search(self.finder_request({"queries": ["555", "10k"], "limit": 3}))
         self.assertEqual(response.status_code, 200)
-        self.plugin.search_parts.assert_called_once_with(["555", "10k"], limit=3, cursor=None)
+        self.plugin.search_parts.assert_called_once_with(["555", "10k"], limit=3, cursor=None, component_queries=None)
         self.assertNotIn("wled", json.loads(response.content))
 
     def test_finder_search_forwards_cursor_and_rejects_invalid_page_tokens(self):
         self.plugin.search_parts = Mock(return_value={"results": []})
         response = self.views.PluginViews(self.plugin).finder_search(self.finder_request({"queries": ["555"], "cursor": "signed-token"}))
         self.assertEqual(response.status_code, 200)
-        self.plugin.search_parts.assert_called_once_with(["555"], limit=5, cursor="signed-token")
+        self.plugin.search_parts.assert_called_once_with(["555"], limit=5, cursor="signed-token", component_queries=None)
         self.plugin.search_parts = self.facade.WledLocatorPlus.search_parts.__get__(self.plugin)
         for cursor in (True, [], "", "bad-token"):
             with self.subTest(cursor=cursor):
                 response = self.views.PluginViews(self.plugin).finder_search(self.finder_request({"queries": ["555"], "cursor": cursor}))
                 self.assertEqual(response.status_code, 400)
+
+    def test_finder_passes_interpreted_line_indexes_and_validates_before_search(self):
+        self.plugin.search_parts = Mock(return_value={"results": []})
+        view = self.views.PluginViews(self.plugin).finder_search
+        response = view(self.finder_request({"queries": ["magnet", "magnet"], "component_queries": [1]}))
+        self.assertEqual(response.status_code, 200)
+        self.plugin.search_parts.assert_called_once_with(["magnet", "magnet"], limit=5, cursor=None, component_queries=[1])
+        self.plugin.search_parts = self.facade.WledLocatorPlus.search_parts.__get__(self.plugin)
+        for invalid in (True, "0", {}, [True], [-1], [1], [0, 0], [0.0], ["0"]):
+            with self.subTest(invalid=invalid):
+                self.assertEqual(view(self.finder_request({"queries": ["magnet"], "component_queries": invalid})).status_code, 400)
 
     def test_finder_preview_keeps_all_selected_parts_and_combines_shared_leds(self):
         response = self.views.PluginViews(self.plugin).finder_preview(self.finder_request({"part_ids": [2, 1, 2]}))
@@ -367,6 +378,25 @@ class FacadeTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn('href="/plugin/wled-locator-plus/finder/">Part finder</a>', response.content.decode())
 
+    def test_finder_entry_points_match_route_and_require_superuser(self):
+        request = self.finder_request(method="GET")
+        navigation = self.plugin.get_ui_navigation_items(request, {})
+        routes = self.plugin.get_ui_routes(request, {})
+        widgets = self.plugin.get_ui_dashboard_items(request, {})
+        self.assertEqual(navigation[0]["options"]["url"].rstrip("/"),
+                         "plugin/wled-locator-plus/" + routes[0]["options"]["path"])
+        self.assertIn("finder_entry.js:renderFinderEntry", routes[0]["source"])
+        self.assertIn("finder_entry.js:renderFinderShortcut", widgets[0]["source"])
+        self.assertTrue(any(action["key"] == "wled-part-finder"
+                            for action in self.plugin.get_ui_spotlight_actions(request, {})))
+        self.plugin._read_plugin_setting.assert_not_called()
+        request.user.is_superuser = False
+        for method in (self.plugin.get_ui_navigation_items, self.plugin.get_ui_routes,
+                       self.plugin.get_ui_dashboard_items):
+            self.assertEqual(method(request, {}), [])
+        self.assertFalse(any(action["key"] == "wled-part-finder"
+                             for action in self.plugin.get_ui_spotlight_actions(request, {})))
+
     def test_dashboard_shell_is_read_only_and_ignores_old_action_links(self):
         views = self.views.PluginViews(self.plugin)
         request = self.finder_request(method="GET")
@@ -431,6 +461,128 @@ class FacadeTests(unittest.TestCase):
         self.plugin.set_led.reset_mock()
         self.assertEqual(views.dashboard_action(self.finder_request({"command": "test", "controller": "A", "led": 999})).status_code, 400)
         self.plugin.set_led.assert_not_called()
+
+    def test_component_endpoints_require_post_csrf_superuser_and_json(self):
+        views = self.views.PluginViews(self.plugin)
+        self.plugin.preview_components = Mock(return_value={"components": []})
+        self.plugin.locate_components = Mock(return_value={"highlighted_components": 1})
+        for callback in (views.component_preview, views.component_locate):
+            self.assertEqual(callback(self.finder_request(method="GET"), 1).status_code, 405)
+            self.assertEqual(callback(self.finder_request({}, csrf=False), 1).status_code, 403)
+            request = self.finder_request({})
+            request.user.is_superuser = False
+            self.assertEqual(callback(request, 1).status_code, 403)
+            self.assertEqual(callback(self.finder_request(body="{''"), 1).status_code, 400)
+            self.assertEqual(callback(self.finder_request(body="x" * 65537), 1).status_code, 413)
+            self.assertEqual(callback(self.finder_request({}, content_type="text/plain"), 1).status_code, 415)
+            response = callback(self.finder_request({"expand": True, "quantity": 3}), 1)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response["Cache-Control"], "no-store")
+        self.plugin.preview_components.assert_called_once_with(1, {"expand": True, "quantity": 3})
+        self.plugin.locate_components.assert_called_once_with(1, {"expand": True, "quantity": 3})
+
+    def test_component_options_are_strict_and_checked_before_inventory(self):
+        from unittest.mock import patch
+        bom = importlib.import_module("locator_facade_test.bom")
+        invalid = [{"quantity": x} for x in (True, 0, -1, 1.2, "3", 10001)]
+        invalid += [{"expand": "true"}, {"include_optional": 1}, {"component_id": True}, {"component_id": 0}]
+        for payload in invalid:
+            with self.subTest(payload=payload):
+                response = self.views.PluginViews(self.plugin).component_preview(self.finder_request(payload), 1)
+                self.assertEqual(response.status_code, 400)
+        with patch.object(bom.Part.objects, "filter", side_effect=AssertionError("Do not load inventory")):
+            self.assertEqual(self.views.PluginViews(self.plugin).component_locate(self.finder_request({"quantity": 0}), 1).status_code, 400)
+
+    def test_component_conflict_includes_fresh_preview_and_busy_remains_retryable(self):
+        bom = importlib.import_module("locator_facade_test.bom")
+        self.plugin.locate_components = Mock(side_effect=bom.ComponentsNotLocatable({"can_locate": False}))
+        views = self.views.PluginViews(self.plugin)
+        response = views.component_locate(self.finder_request({}), 1)
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(json.loads(response.content)["preview"], {"can_locate": False})
+        self.assertEqual(json.loads(response.content)["code"], "components_not_locatable")
+        self.plugin.locate_components.side_effect = self.views.LocatorBusyError("Busy")
+        response = views.component_locate(self.finder_request({}), 1)
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response["Retry-After"], "1")
+
+    def test_component_panel_is_added_only_to_assemblies_with_separate_urls(self):
+        request = self.finder_request(method="GET")
+        self.assertEqual(len(self.plugin.get_ui_panels(request, {"target_model": "part", "target_id": 1})), 1)
+        self.fixture.part.assembly = True
+        panels = self.plugin.get_ui_panels(request, {"target_model": "part", "target_id": 1})
+        self.assertEqual(len(panels), 2)
+        self.assertEqual(panels[1]["source"], "bom_panel.js:renderBomPanel")
+        self.assertEqual(panels[1]["context"]["preview_url"], "/plugin/wled-locator-plus/components/part/1/preview/")
+        self.assertEqual(len(panels[1]["context"]["csrf_token"]), 64)
+
+    def test_build_component_endpoints_are_protected_and_forward_only_saved_build_options(self):
+        views = self.views.PluginViews(self.plugin)
+        self.plugin.preview_build_components = Mock(return_value={"components": []})
+        self.plugin.locate_build_components = Mock(return_value={"highlighted_components": 1})
+        for callback in (views.build_component_preview, views.build_component_locate):
+            self.assertEqual(callback(self.finder_request(method="GET"), 2).status_code, 405)
+            self.assertEqual(callback(self.finder_request({}, csrf=False), 2).status_code, 403)
+            request = self.finder_request({})
+            request.user.is_superuser = False
+            self.assertEqual(callback(request, 2).status_code, 403)
+            self.assertEqual(callback(self.finder_request(body="{''"), 2).status_code, 400)
+            self.assertEqual(callback(self.finder_request(body="x" * 65537), 2).status_code, 413)
+            self.assertEqual(callback(self.finder_request({}, content_type="text/plain"), 2).status_code, 415)
+            response = callback(self.finder_request({"include_subbuilds": True}), 2)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response["Cache-Control"], "no-store")
+        self.plugin.preview_build_components.assert_called_once_with(2, {"include_subbuilds": True})
+        self.plugin.locate_build_components.assert_called_once_with(2, {"include_subbuilds": True})
+
+    def test_build_component_options_reject_quantity_overrides_and_invalid_scope_before_inventory(self):
+        views = self.views.PluginViews(self.plugin)
+        for payload in ({"quantity": 3}, {"expand": True}, {"include_optional": False}, {"include_subbuilds": "yes"}, {"include_subbuilds": 1}, {"component_id": True}):
+            with self.subTest(payload=payload):
+                self.assertEqual(views.build_component_preview(self.finder_request(payload), 2).status_code, 400)
+                self.assertEqual(views.build_component_locate(self.finder_request(payload), 2).status_code, 400)
+
+    def test_build_required_panel_preserves_existing_allocated_stock_panel(self):
+        from support import Query
+        Build.objects = Query([self.fixture.build])
+        panels = self.plugin.get_ui_panels(self.finder_request(method="GET"), {"target_model": "build", "target_id": 1})
+        self.assertEqual(len(panels), 2)
+        self.assertEqual(panels[0]["source"], "locator_panel.js:renderBuildPanel")
+        self.assertEqual(panels[1]["title"], "Locate Required Components")
+        self.assertEqual(panels[1]["context"]["preview_url"], "/plugin/wled-locator-plus/components/build/1/preview/")
+        self.assertEqual(len(panels[1]["context"]["csrf_token"]), 64)
+
+    def test_picking_storage_key_is_account_and_object_scoped(self):
+        self.fixture.part.assembly = True
+        keys = []
+        for pk in (1, 2, None):
+            request = self.finder_request(method="GET")
+            request.user.pk = pk
+            context = self.plugin.get_ui_panels(request, {"target_model": "part", "target_id": 1})[1]["context"]
+            keys.append(context["picking_storage_key"])
+        self.assertEqual(keys, ["wled-locator-plus.picking.v1.user.1.part.1", "wled-locator-plus.picking.v1.user.2.part.1", None])
+        self.assertNotEqual(self.plugin.picking_storage_key(self.finder_request(), "part", 1), self.plugin.picking_storage_key(self.finder_request(), "build", 1))
+
+    def test_picking_selection_is_validated_before_inventory_for_both_panels(self):
+        views = self.views.PluginViews(self.plugin)
+        invalid = [{"remaining_component_ids": x, "picking_revision": "a" * 64} for x in (None, "1", [True], [0], [1, 1], list(range(1, 1002)))]
+        invalid += [{"remaining_component_ids": [1]}, {"picking_revision": "a" * 64}, {"remaining_component_ids": [1], "picking_revision": "invalid"}]
+        for payload in invalid:
+            for callback in (views.component_preview, views.component_locate, views.build_component_preview, views.build_component_locate):
+                with self.subTest(payload=payload, callback=callback.__name__):
+                    self.assertEqual(callback(self.finder_request(payload), 1).status_code, 400)
+
+    def test_picking_conflict_returns_fresh_preview_for_assembly_and_build(self):
+        picking = importlib.import_module("locator_facade_test.picking")
+        conflict = picking.PickingChanged({"components": [], "can_locate": False})
+        self.plugin.locate_components = Mock(side_effect=conflict)
+        self.plugin.locate_build_components = Mock(side_effect=conflict)
+        views = self.views.PluginViews(self.plugin)
+        for callback in (views.component_locate, views.build_component_locate):
+            response = callback(self.finder_request({}), 1)
+            self.assertEqual(response.status_code, 409)
+            self.assertEqual(json.loads(response.content)["code"], "picking_changed")
+            self.assertFalse(json.loads(response.content)["preview"]["can_locate"])
 
     def native_callbacks(self):
         views = self.views.PluginViews(self.plugin)
